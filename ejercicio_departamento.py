@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np 
 import time
 
 # 1. Configuración de datos
@@ -40,6 +40,20 @@ def buscar_valor(matriz):
     valor = matriz[id_dept, id_mes]
     print(f"\n>> El valor de ventas para {departamentos[id_dept]} en {meses[id_mes]} es: ${valor}")
 
+# --- MÉTODO PARA ELIMINAR UNA VENTA ---
+def eliminar_venta(matriz):
+    print("\n--- ELIMINAR UNA VENTA ---")
+    for i, dept in enumerate(departamentos):
+        print(f"{i}: {dept}")
+    id_dept = int(input("Seleccione el índice del departamento: "))
+    
+    for i, mes in enumerate(meses):
+        print(f"{i}: {mes}")
+    id_mes = int(input("Seleccione el índice del mes: "))
+    
+    matriz[id_dept, id_mes] = 0
+    print(f"\n>> Venta eliminada para {departamentos[id_dept]} en {meses[id_mes]}.")
+
 # --- FLUJO DEL PROGRAMA ---
 
 # Mostrar tabla inicial
@@ -65,3 +79,9 @@ mostrar_reporte(ventas)
 
 # Llamada al nuevo método de búsqueda
 buscar_valor(ventas)
+
+# Llamada al método para eliminar venta
+eliminar_venta(ventas)
+
+# Mostrar tabla final
+mostrar_reporte(ventas)
