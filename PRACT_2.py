@@ -9,10 +9,8 @@ def memoria_estatica():
         # Solicitamos la entrada al usuario
         entrada = input(f"Captura la calificación {i+1}: ")
         
-        # se guarda el valor en la posición específica del arreglo
         calificaciones[i] = int(entrada)
 
-    # Mostramos el resultado final
     print("\nArreglo resultante:", calificaciones)
     print("Tipo de objeto:", type(calificaciones))
 
@@ -25,7 +23,6 @@ def memoria_dinamica():
     frutas.append("Banana")
     frutas.append("Uvas")
 
-    # System.out.println(frutas)
     print("Lista inicial:", frutas)
 
     # eliminar por índice
@@ -34,10 +31,8 @@ def memoria_dinamica():
     # los índices se recorren
     frutas.pop(1)
 
-    # frutas.add("sandia")
     frutas.append("sandia")
 
-    # System.out.println(frutas)
     print("Lista final:  ", frutas)
 
 def main():
