@@ -1,0 +1,65 @@
+"""
+El problema de los conejos: 
+
+un granjero tiene un par de conejos bebes
+
+Los conejos toman dos meses en conseguir la madurez, y entonces
+dar a luz a otro par de conejos cada mes.
+
+¿Cuantos pares de conejos habrán despues de n meses?
+"""
+
+def fibonacci_it(x: int):
+    first_val: int = 0 
+    second_val: int = 1
+
+    for _ in range(x):
+        first_val, second_val = second_val, first_val + second_val
+
+    print(first_val)
+
+"""
+Tiempo de ejecución fibonacci_it(12)
+fueron 7ms
+
+Tiempo de ejecución fibonacci_it(10000)
+fueron 8ms
+
+Tiempo de ejecución fibonacci_it(20000)
+fueron 51ms
+
+Pues en este caso usaría esta función interativa
+porque en principio presentó mayor eficiencia
+y estabilidad al manejar los recusos de la 
+computadora. Además, permitió probarla con 
+valores altos no mayores a 30000, y por esta 
+razón optaría por esta opción.
+"""
+        
+
+def fibonacci_re(x: int):
+    if x == 0:
+        return 0
+    elif x == 1:
+        return 1
+    else:
+        return fibonacci_re(x-1) + fibonacci_re(x-2)
+    
+"""
+Tiempo de ejecución fibonacci_re(12)
+fueron 8ms
+
+Tiempo de ejecución fibonacci_re(10000)
+No funcionó
+
+Tiempo de ejecución fibonacci_re(500)
+fueron arriba de 20 minutos 
+
+Esta segunda opción es más simple y fiel a la 
+teoría matemática. Resulta ideal para estudiar 
+algoritmos, abordar problemas ramificados (como árboles de datos)
+o como base antes de aplicar optimizaciones avanzadas. 
+Particularmente en este caso, no lo usaría.
+"""
+
+fibonacci_re(500)
