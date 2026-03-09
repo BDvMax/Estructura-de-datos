@@ -32,13 +32,14 @@ SEQ_CORR = [
     ("POP", "U","e. Eliminar(PILA, U) [CORREGIDO]\nPOP -> U recibe el tope. Sin error."),
     ("PUSH","V","f. Insertar(PILA, V)\nPUSH 'V' al tope."),
     ("PUSH","W","g. Insertar(PILA, W)\nPUSH 'W' al tope."),
-    ("POP", "p","h. Eliminar(PILA, p)\nPOP -> p recibe el tope."),
+    ("PUSH","p","★ PASO EXTRA: Insertar(PILA, p)\nSe inserta p antes de eliminarlo."),
+    ("POP", "p","h. Eliminar(PILA, p) [CORREGIDO]\nPOP -> p recibe el tope. Sin error."),
     ("PUSH","R","i. Insertar(PILA, R)\nPUSH 'R' al tope."),
 ]
 
 COMPARATIVA = (
     " ORIGINAL          | CORREGIDA\n"
-    "-------------------+-------------------\n"
+    "-------------------+--------------------\n"
     " a. PUSH X  TOPE=1 | a. PUSH X  TOPE=1\n"
     " b. PUSH Y  TOPE=2 | b. PUSH Y  TOPE=2\n"
     "                   | * PUSH Z   TOPE=3\n"
@@ -49,10 +50,11 @@ COMPARATIVA = (
     "    (pila vacia)   | e. POP->U  TOPE=2\n"
     " f. PUSH V  TOPE=1 | f. PUSH V  TOPE=3\n"
     " g. PUSH W  TOPE=2 | g. PUSH W  TOPE=4\n"
-    " h. POP->p  TOPE=1 | h. POP->p  TOPE=3\n"
-    " i. PUSH R  TOPE=2 | i. PUSH R  TOPE=4\n"
-    "-------------------+-------------------\n"
-    " [V,R] Errores: 1  | [X,Y,V,R] Err: 0\n"
+    "                   | * PUSH p   TOPE=5\n"
+    " h. POP->p  TOPE=1 | h. POP->p  TOPE=4\n"
+    " i. PUSH R  TOPE=2 | i. PUSH R  TOPE=5\n"
+    "-------------------+--------------------\n"
+    " [V,R] Errores: 1  | [X,Y,V,p,R] Err:0\n"
 )
 
 # ── Clase Pila ───────────────────────────────────────────────────────
@@ -308,7 +310,7 @@ class App:
         if self.modo == "original":
             return chr(ord('a') + idx)
         # corregida: saltar indices extra (2,4,6)
-        mapa = {0:'a',1:'b',3:'c',5:'d',7:'e',8:'f',9:'g',10:'h',11:'i'}
+        mapa = {0:'a',1:'b',3:'c',5:'d',7:'e',8:'f',9:'g',11:'h',12:'i'}
         return mapa.get(idx, '?')
 
     def _ejecutar_paso(self, silencioso=False):
