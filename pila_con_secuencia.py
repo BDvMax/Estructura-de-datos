@@ -5,10 +5,10 @@ from tkinter import messagebox
 BG, PANEL, ACCENT = "#0f0f1a", "#1a1a2e", "#e94560"
 GREEN, YELLOW, TEXT, MUTED = "#00d4aa", "#f5a623", "#e0e0f0", "#5a5a7a"
 BLUE, PURPLE = "#3a86ff", "#9b5de5"
+ORANGE = "#ff9f43"
 BLOQUES = ["#e94560","#f5a623","#00d4aa","#7c5cbf","#3a86ff","#ff6b6b","#06d6a0","#f15bb5"]
 
 # ── Secuencias ───────────────────────────────────────────────────────
-# (op, variable, descripcion)
 SEQ_ORIG = [
     ("PUSH","X","a. Insertar(PILA, X)\nPUSH 'X' al tope."),
     ("PUSH","Y","b. Insertar(PILA, Y)\nPUSH 'Y' al tope."),
@@ -84,10 +84,8 @@ class Pila:
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Visualizador de Pila")
-        self.root.configure(bg=BG)
-        self.root.resizable(False, False)
         self.pila = Pila()
+        self.pila_aux = Pila()
         self.ultimo_op = tk.StringVar(value="Bienvenido -> usa PUSH / POP o una Secuencia")
         self.paso = 0
         self.errores = []
@@ -108,14 +106,18 @@ class App:
         main = tk.Frame(self.root, bg=BG)
         main.pack(padx=20)
 
-        # Canvas
+        # Canvas PILA PRINCIPAL
+        lbl_main = tk.Label(main, text="PILA PRINCIPAL", bg=BG, fg=ACCENT,
+                            font=("Courier New", 9, "bold"))
+        lbl_main.grid(row=0, column=0, padx=(0,16), pady=(0,2))
+
         self.canvas = tk.Canvas(main, width=240, height=380, bg=PANEL,
                                 highlightthickness=2, highlightbackground=ACCENT)
-        self.canvas.grid(row=0, column=0, padx=(0,16), sticky="n")
+        self.canvas.grid(row=1, column=0, padx=(0,16), sticky="n")
 
         # Panel derecho
         R = tk.Frame(main, bg=BG)
-        R.grid(row=0, column=1, sticky="n")
+        R.grid(row=0, column=1, rowspan=2, sticky="n")
 
         # Estado
         sf = self._frame(R)
@@ -137,6 +139,23 @@ class App:
         self.entrada.bind("<Return>", lambda e: self._push_manual())
         self._btn(R, "PUSH (Insertar)", GREEN,  self._push_manual)
         self._btn(R, "POP  (Eliminar)", ACCENT, self._pop_manual)
+
+        # ── BOTONES PILA AUXILIAR ─────────────────────────────────
+        tk.Frame(R, bg=ORANGE, height=1).pack(fill="x", pady=(8,4))
+        tk.Label(R, text="-- Pila Auxiliar (Hanoi) --", bg=BG, fg=ORANGE,
+                 font=("Courier New", 8, "bold")).pack(anchor="w", pady=(0,4))
+
+        self._btn(R, "POP  -> AUX  (mueve tope a aux)", ORANGE, self._pop_a_aux)
+        self._btn(R, "AUX  -> PUSH (mueve tope de aux)", PURPLE, self._aux_a_main)
+
+        # Estado auxiliar compacto
+        saf = self._frame(R)
+        tk.Label(saf, text="ESTADO AUX", bg=PANEL, fg=MUTED,
+                 font=("Courier New", 8, "bold")).pack(anchor="w", padx=10, pady=(6,0))
+        self.lbl_aux_tam  = self._stat(saf, "Tamano", "0")
+        self.lbl_aux_tope = self._stat(saf, "TOPE",   "-")
+        tk.Frame(saf, height=4, bg=PANEL).pack()
+
         self._btn(R, "Limpiar pila",    MUTED,  self._limpiar)
 
         # Selector de secuencia
@@ -179,6 +198,15 @@ class App:
         tk.Label(of, textvariable=self.ultimo_op, bg=PANEL, fg=YELLOW,
                  font=("Courier New", 8), wraplength=195,
                  justify="left").pack(anchor="w", padx=10, pady=(2,8))
+
+        # Canvas PILA AUXILIAR (debajo de pila principal)
+        lbl_aux = tk.Label(main, text="PILA  AUXILIAR", bg=BG, fg=ORANGE,
+                           font=("Courier New", 9, "bold"))
+        lbl_aux.grid(row=2, column=0, padx=(0,16), pady=(14,2))
+
+        self.canvas_aux = tk.Canvas(main, width=240, height=200, bg=PANEL,
+                                    highlightthickness=2, highlightbackground=ORANGE)
+        self.canvas_aux.grid(row=3, column=0, padx=(0,16), sticky="n")
 
         # Fila inferior: historial + comparativa
         bot = tk.Frame(self.root, bg=BG)
@@ -230,41 +258,78 @@ class App:
                   activebackground=TEXT, activeforeground=BG,
                   padx=8, pady=5).pack(fill="x", pady=2)
 
-    # ── Dibujo ───────────────────────────────────────────────────────
+    # ── Dibujo pila principal ─────────────────────────────────────────
     def _dibujar(self):
-        self.canvas.delete("all")
-        W, H, BH, M = 240, 380, 38, 30
-        borde = PURPLE if self.modo == "corregida" else ACCENT
-        self.canvas.config(highlightbackground=borde)
-        self.canvas.create_rectangle(M, H-24, W-M, H-18, fill=borde, outline="")
-        self.canvas.create_rectangle(M, 20, M+6, H-18, fill=MUTED, outline="")
-        self.canvas.create_rectangle(W-M-6, 20, W-M, H-18, fill=MUTED, outline="")
+        self._dibujar_canvas(self.canvas, self.pila, 380,
+                             PURPLE if self.modo == "corregida" else ACCENT)
+        self._dibujar_canvas_aux()
+        # update estado principal
+        n = self.pila.tope()
+        t = self.pila.peek()
+        self.lbl_tam.config(text=str(n))
+        self.lbl_tope.config(text=str(t) if t is not None else "-")
+        self.lbl_vacia.config(text="Si" if n == 0 else "No",
+                              fg=GREEN if n == 0 else ACCENT)
+        # update estado auxiliar
+        na = self.pila_aux.tope()
+        ta = self.pila_aux.peek()
+        self.lbl_aux_tam.config(text=str(na))
+        self.lbl_aux_tope.config(text=str(ta) if ta is not None else "-")
 
-        elems = self.pila.elementos
+    def _dibujar_canvas(self, canvas, pila, H, borde_color):
+        canvas.delete("all")
+        W, BH, M = 240, 38, 30
+        canvas.config(highlightbackground=borde_color)
+        canvas.create_rectangle(M, H-24, W-M, H-18, fill=borde_color, outline="")
+        canvas.create_rectangle(M, 20, M+6, H-18, fill=MUTED, outline="")
+        canvas.create_rectangle(W-M-6, 20, W-M, H-18, fill=MUTED, outline="")
+        elems = pila.elementos
         n = len(elems)
         if n == 0:
-            self.canvas.create_text(W//2, H//2, text="[ vacia ]",
-                                    fill=MUTED, font=("Courier New", 13, "italic"))
+            canvas.create_text(W//2, H//2, text="[ vacia ]",
+                               fill=MUTED, font=("Courier New", 13, "italic"))
         for i, val in enumerate(elems[:8]):
             y2 = H - 24 - i*(BH+4)
             y1, x1, x2 = y2-BH, M+6, W-M-6
             c = BLOQUES[i % len(BLOQUES)]
-            self.canvas.create_rectangle(x1+3, y1+3, x2+3, y2+3, fill="#0a0a14", outline="")
-            self.canvas.create_rectangle(x1, y1, x2, y2, fill=c, outline="")
-            self.canvas.create_text(x1+14, (y1+y2)//2, text=f"[{i}]",
-                                    fill=BG, font=("Courier New", 7), anchor="w")
+            canvas.create_rectangle(x1+3, y1+3, x2+3, y2+3, fill="#0a0a14", outline="")
+            canvas.create_rectangle(x1, y1, x2, y2, fill=c, outline="")
+            canvas.create_text(x1+14, (y1+y2)//2, text=f"[{i}]",
+                               fill=BG, font=("Courier New", 7), anchor="w")
             txt = str(val)[:12]
-            self.canvas.create_text((x1+x2)//2, (y1+y2)//2, text=txt,
-                                    fill=BG, font=("Courier New", 11, "bold"))
+            canvas.create_text((x1+x2)//2, (y1+y2)//2, text=txt,
+                               fill=BG, font=("Courier New", 11, "bold"))
             if i == n-1:
-                self.canvas.create_text(W-M+2, (y1+y2)//2, text="< TOPE",
-                                        fill=YELLOW, font=("Courier New", 7, "bold"), anchor="w")
+                canvas.create_text(W-M+2, (y1+y2)//2, text="< TOPE",
+                                   fill=YELLOW, font=("Courier New", 7, "bold"), anchor="w")
 
-        self.lbl_tam.config(text=str(n))
-        t = self.pila.peek()
-        self.lbl_tope.config(text=str(t) if t is not None else "-")
-        self.lbl_vacia.config(text="Si" if not elems else "No",
-                              fg=GREEN if not elems else ACCENT)
+    def _dibujar_canvas_aux(self):
+        canvas = self.canvas_aux
+        canvas.delete("all")
+        W, H, BH, M = 240, 200, 34, 30
+        canvas.config(highlightbackground=ORANGE)
+        canvas.create_rectangle(M, H-18, W-M, H-12, fill=ORANGE, outline="")
+        canvas.create_rectangle(M, 10, M+6, H-12, fill=MUTED, outline="")
+        canvas.create_rectangle(W-M-6, 10, W-M, H-12, fill=MUTED, outline="")
+        elems = self.pila_aux.elementos
+        n = len(elems)
+        if n == 0:
+            canvas.create_text(W//2, H//2, text="[ aux vacia ]",
+                               fill=MUTED, font=("Courier New", 11, "italic"))
+        for i, val in enumerate(elems[:5]):
+            y2 = H - 18 - i*(BH+3)
+            y1, x1, x2 = y2-BH, M+6, W-M-6
+            c = BLOQUES[(i+4) % len(BLOQUES)]
+            canvas.create_rectangle(x1+3, y1+3, x2+3, y2+3, fill="#0a0a14", outline="")
+            canvas.create_rectangle(x1, y1, x2, y2, fill=c, outline="")
+            canvas.create_text(x1+14, (y1+y2)//2, text=f"[{i}]",
+                               fill=BG, font=("Courier New", 7), anchor="w")
+            txt = str(val)[:12]
+            canvas.create_text((x1+x2)//2, (y1+y2)//2, text=txt,
+                               fill=BG, font=("Courier New", 11, "bold"))
+            if i == n-1:
+                canvas.create_text(W-M+2, (y1+y2)//2, text="< TOPE",
+                                   fill=ORANGE, font=("Courier New", 7, "bold"), anchor="w")
 
     # ── Operaciones manuales ─────────────────────────────────────────
     def _push_manual(self):
@@ -287,11 +352,39 @@ class App:
         self._log(f"POP '{val}' | TOPE={self.pila.tope()}")
         self._dibujar()
 
+    def _pop_a_aux(self):
+        """POP de pila principal -> PUSH en pila auxiliar"""
+        ok, val = self.pila.pop()
+        if not ok:
+            return messagebox.showinfo("UNDERFLOW", "Pila principal vacia.")
+        ok2, msg2 = self.pila_aux.push(val)
+        if not ok2:
+            # revertir: devolver a principal
+            self.pila.push(val)
+            return messagebox.showwarning("OVERFLOW AUX", f"Pila auxiliar llena.\n{msg2}")
+        self.ultimo_op.set(f"POP '{val}' MAIN -> AUX tope={self.pila_aux.tope()}")
+        self._log(f"[AUX] '{val}' MAIN->AUX | MainTOPE={self.pila.tope()} AuxTOPE={self.pila_aux.tope()}")
+        self._dibujar()
+
+    def _aux_a_main(self):
+        """POP de pila auxiliar -> PUSH en pila principal"""
+        ok, val = self.pila_aux.pop()
+        if not ok:
+            return messagebox.showinfo("AUX VACIA", "Pila auxiliar vacia.")
+        ok2, msg2 = self.pila.push(val)
+        if not ok2:
+            self.pila_aux.push(val)
+            return messagebox.showwarning("OVERFLOW MAIN", f"Pila principal llena.\n{msg2}")
+        self.ultimo_op.set(f"AUX '{val}' -> MAIN tope={self.pila.tope()}")
+        self._log(f"[AUX] '{val}' AUX->MAIN | MainTOPE={self.pila.tope()} AuxTOPE={self.pila_aux.tope()}")
+        self._dibujar()
+
     def _limpiar(self):
-        if messagebox.askyesno("Limpiar", "Vaciar toda la pila?"):
+        if messagebox.askyesno("Limpiar", "Vaciar pila principal Y auxiliar?"):
             self.pila = Pila()
-            self.ultimo_op.set("Pila limpiada")
-            self._log("--- LIMPIAR ---")
+            self.pila_aux = Pila()
+            self.ultimo_op.set("Pilas limpiadas")
+            self._log("--- LIMPIAR AMBAS ---")
             self._dibujar()
 
     # ── Secuencia ────────────────────────────────────────────────────
@@ -309,7 +402,6 @@ class App:
             return "★"
         if self.modo == "original":
             return chr(ord('a') + idx)
-        # corregida: saltar indices extra (2,4,6)
         mapa = {0:'a',1:'b',3:'c',5:'d',7:'e',8:'f',9:'g',11:'h',12:'i'}
         return mapa.get(idx, '?')
 
@@ -364,6 +456,7 @@ class App:
 
     def _reiniciar(self, silencioso=False):
         self.pila, self.paso, self.errores = Pila(), 0, []
+        self.pila_aux = Pila()
         self.ultimo_op.set("Reiniciado - listo para comenzar")
         self.lbl_paso.config(text=self._desc_paso())
         if not silencioso:
@@ -407,5 +500,30 @@ class App:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    App(root)
+    root.title("Visualizador de Pila")
+    root.configure(bg=BG)
+
+    container = tk.Frame(root, bg=BG)
+    container.pack(fill="both", expand=True)
+
+    canvas_scroll = tk.Canvas(container, bg=BG, highlightthickness=0)
+    scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas_scroll.yview)
+    canvas_scroll.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side="right", fill="y")
+    canvas_scroll.pack(side="left", fill="both", expand=True)
+
+    inner = tk.Frame(canvas_scroll, bg=BG)
+    win_id = canvas_scroll.create_window((0, 0), window=inner, anchor="nw")
+
+    inner.bind("<Configure>", lambda e: canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all")))
+    canvas_scroll.bind("<Configure>", lambda e: canvas_scroll.itemconfig(win_id, width=e.width))
+
+    canvas_scroll.bind_all("<MouseWheel>", lambda e: canvas_scroll.yview_scroll(int(-1*(e.delta/120)), "units"))
+    canvas_scroll.bind_all("<Button-4>", lambda e: canvas_scroll.yview_scroll(-1, "units"))
+    canvas_scroll.bind_all("<Button-5>", lambda e: canvas_scroll.yview_scroll(1, "units"))
+
+    sh = root.winfo_screenheight()
+    root.geometry(f"900x{min(sh-80, 860)}")
+
+    App(inner)
     root.mainloop()
