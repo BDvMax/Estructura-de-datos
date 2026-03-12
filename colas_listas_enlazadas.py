@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-# 1. La clase Order (El Pedido)
+
 class Order:
     def __init__(self, qtty: int, customer: str):
         self.customer = customer
@@ -18,14 +18,12 @@ class Order:
         return self.customer
 
 
-# 2. La clase Node (El eslabón)
 class Node:
     def __init__(self, info):
-        self.info = info  # El objeto que guardamos (un Order)
-        self.next = None  # Apuntador al siguiente nodo
+        self.info = info
+        self.next = None
 
 
-# 3. La interfaz QueueInterface
 class QueueInterface(ABC):
     @abstractmethod
     def size(self) -> int: pass
@@ -43,12 +41,11 @@ class QueueInterface(ABC):
     def dequeue(self): pass
 
 
-# 4. La clase principal LinkedQueue
 class LinkedQueue(QueueInterface):
     def __init__(self):
-        self.top = None   # Cabeza de la cola (por donde salen)
-        self.tail = None  # Final de la cola (por donde entran)
-        self._size = 0    # Llevamos la cuenta para no tener que recorrerla
+        self.top = None
+        self.tail = None
+        self._size = 0
 
     def size(self) -> int:
         return self._size
@@ -63,108 +60,151 @@ class LinkedQueue(QueueInterface):
 
     def enqueue(self, info):
         new_node = Node(info)
-        
-        # Si la cola está vacía, el nuevo nodo es tanto el principio como el final
         if self.is_empty():
             self.top = new_node
             self.tail = new_node
         else:
-            # Si ya hay elementos, lo enganchamos al final y actualizamos el 'tail'
             self.tail.next = new_node
             self.tail = new_node
-            
         self._size += 1
 
     def dequeue(self):
         if self.is_empty():
             return None
-            
-        # Guardamos la info del frente para devolverla
         removed_info = self.top.info
-        
-        # Avanzamos el top al siguiente nodo (el anterior se desconecta)
         self.top = self.top.next
         self._size -= 1
-        
-        # Si al sacar el elemento la cola quedó vacía, el tail también debe ser None
         if self.is_empty():
             self.tail = None
-            
         return removed_info
 
-    def print_info(self):
-        print("********* QUEUE DUMP *********")
-        print(f"   Size: {self.size()}")
-        
-        current_node = self.top
-        count = 1
-        
-        while current_node is not None:
-            print(f"   ** Element {count}")
-            # Verificamos si el objeto guardado tiene el método print_order
-            if hasattr(current_node.info, 'print_order'):
-                current_node.info.print_order()
-            else:
-                print(current_node.info)
-                
-            current_node = current_node.next
-            count += 1
-            
-        print("******************************")
+    def remove_at(self, pos: int):
+        if pos < 1 or pos > self._size:
+            print(f"     Posición {pos} fuera de rango.")
+            return None
+        if pos == 1:
+            return self.dequeue()
+        prev_node = self.top
+        for _ in range(pos - 2):
+            prev_node = prev_node.next
+        target_node = prev_node.next
+        prev_node.next = target_node.next
+        if target_node == self.tail:
+            self.tail = prev_node
+        self._size -= 1
+        return target_node.info
 
     def get_nth(self, pos: int):
-        # Validamos que la posición sea válida
         if pos < 1 or pos > self.size():
             return None
-            
         current_node = self.top
         count = 1
-        
         while current_node is not None:
             if count == pos:
                 return current_node.info
             current_node = current_node.next
             count += 1
-            
         return None
 
+    def print_info(self):
+        print("********* QUEUE DUMP *********")
+        print(f"   Size: {self.size()}")
+        current_node = self.top
+        count = 1
+        while current_node is not None:
+            print(f"   ** Element {count}")
+            if hasattr(current_node.info, 'print_order'):
+                current_node.info.print_order()
+            else:
+                print(current_node.info)
+            current_node = current_node.next
+            count += 1
+        print("******************************")
 
-# 5. La prueba (Simulando el TestQueue main de Java)
+
+def menu():
+    print("\n=============================")
+    print("  GESTOR DE COLA DE PEDIDOS  ")
+    print("=============================")
+    print("  1. Insertar pedido (enqueue)")
+    print("  2. Quitar del frente (dequeue)")
+    print("  3. Eliminar por posición")
+    print("  4. Ver frente (front)")
+    print("  5. Obtener pedido por posición")
+    print("  6. Mostrar toda la cola")
+    print("  0. Salir")
+    print("-----------------------------")
+
+
+def input_int(prompt: str) -> int:
+    while True:
+        try:
+            return int(input(prompt))
+        except ValueError:
+            print("     Por favor ingresa un número válido.")
+
+
 if __name__ == "__main__":
     queue = LinkedQueue()
-    
-    # Creamos 4 pedidos
-    order1 = Order(20, "cust1")
-    order2 = Order(30, "cust2")
-    order3 = Order(40, "cust3")
-    order4 = Order(50, "cust4")
-    
-    # Encolamos los primeros 3
-    print("\n--- Encolando pedidos 1, 2 y 3 ---")
-    queue.enqueue(order1)
-    queue.enqueue(order2)
-    queue.enqueue(order3)
-    queue.print_info()
-    
-    # Probamos front
-    print(f"\n--- Probando front() ---")
-    print(f"El elemento al frente es del cliente: {queue.front().get_customer()}")
-    
-    # Desencolamos uno
-    print("\n--- Desencolando (dequeue) el primer elemento ---")
-    despachado = queue.dequeue()
-    print(f"Se atendió a: {despachado.get_customer()}")
-    queue.print_info()
-    
-    # Encolamos un cuarto elemento
-    print("\n--- Encolando pedido 4 ---")
-    queue.enqueue(order4)
-    queue.print_info()
-    
-    # Probamos obtener el n-ésimo (vamos a pedir el 3ro en la fila actual)
-    print("\n--- Obteniendo el 3er elemento de la cola actual ---")
-    tercero = queue.get_nth(3)
-    if tercero:
-        tercero.print_order()
-    else:
-        print("Posición no válida")
+
+    while True:
+        menu()
+        opcion = input("  Elige una opción: ").strip()
+
+        if opcion == "1":
+            customer = input("     Nombre del cliente: ").strip()
+            if not customer:
+                print("     El nombre no puede estar vacío.")
+                continue
+            qtty = input_int("     Cantidad: ")
+            queue.enqueue(Order(qtty, customer))
+            print(f"     Pedido de '{customer}' insertado al final de la cola.")
+
+        elif opcion == "2":
+            removed = queue.dequeue()
+            if removed:
+                print(f"     Pedido atendido:")
+                removed.print_order()
+            else:
+                print("     La cola está vacía.")
+
+        elif opcion == "3":
+            if queue.is_empty():
+                print("     La cola está vacía.")
+                continue
+            queue.print_info()
+            pos = input_int("     Posición a eliminar: ")
+            removed = queue.remove_at(pos)
+            if removed:
+                print(f"     Pedido eliminado:")
+                removed.print_order()
+
+        elif opcion == "4":
+            frente = queue.front()
+            if frente:
+                print("     Pedido al frente:")
+                frente.print_order()
+            else:
+                print("     La cola está vacía.")
+
+        elif opcion == "5":
+            if queue.is_empty():
+                print("     La cola está vacía.")
+                continue
+            pos = input_int(f"     Posición (1 - {queue.size()}): ")
+            pedido = queue.get_nth(pos)
+            if pedido:
+                print(f"     Pedido en posición {pos}:")
+                pedido.print_order()
+            else:
+                print("     Posición fuera de rango.")
+
+        elif opcion == "6":
+            queue.print_info()
+
+        elif opcion == "0":
+            print("\n     Hasta luego.\n")
+            break
+
+        else:
+            print("     Opción no válida, intenta de nuevo.")
