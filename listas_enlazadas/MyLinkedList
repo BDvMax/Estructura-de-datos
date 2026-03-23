@@ -1,0 +1,313 @@
+"""
+MyLinkedList - Biblioteca de Linked List en Python
+Implementación propia de una lista enlazada simple (Singly Linked List).
+"""
+class Node:
+    """Nodo individual de la lista enlazada."""
+
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+    def __repr__(self):
+        return f"Node({self.data!r})"
+
+
+class MyLinkedList:
+    """
+    Implementación de una Linked List (Lista Enlazada Simple).
+
+    Operaciones disponibles:
+        append(data)        → Agrega al final
+        prepend(data)       → Agrega al inicio
+        insert(index, data) → Inserta en posición dada
+        delete(data)        → Elimina el primer nodo con ese valor
+        delete_at(index)    → Elimina el nodo en la posición dada
+        search(data)        → Busca un valor; retorna índice o -1
+        get(index)          → Retorna el valor en la posición dada
+        reverse()           → Invierte la lista en su lugar
+        to_list()           → Convierte la lista a una lista de Python
+        clear()             → Vacía la lista
+        length()            → Retorna el número de nodos
+        is_empty()          → Retorna True si la lista está vacía
+    """
+
+    def __init__(self, items=None):
+        """
+        Inicializa la lista. Opcionalmente recibe un iterable para poblarla.
+
+        Args:
+            items: iterable opcional con valores iniciales.
+        """
+        self.head = None
+        self._length = 0
+
+        if items:
+            for item in items:
+                self.append(item)
+
+    # ------------------------------------------------------------------
+    # Operaciones de inserción
+    # ------------------------------------------------------------------
+
+    def append(self, data):
+        """Agrega un nuevo nodo al final de la lista. O(n)."""
+        new_node = Node(data)
+        if self.head is None:
+            self.head = new_node
+        else:
+            current = self.head
+            while current.next:
+                current = current.next
+            current.next = new_node
+        self._length += 1
+
+    def prepend(self, data):
+        """Agrega un nuevo nodo al inicio de la lista. O(1)."""
+        new_node = Node(data)
+        new_node.next = self.head
+        self.head = new_node
+        self._length += 1
+
+    def insert(self, index, data):
+        """
+        Inserta un nuevo nodo en la posición indicada. O(n).
+
+        Args:
+            index: posición donde insertar (0-based).
+            data:  valor del nuevo nodo.
+
+        Raises:
+            IndexError: si el índice está fuera de rango.
+        """
+        if index < 0 or index > self._length:
+            raise IndexError(f"Índice {index} fuera de rango (longitud={self._length})")
+
+        if index == 0:
+            self.prepend(data)
+            return
+
+        new_node = Node(data)
+        current = self.head
+        for _ in range(index - 1):
+            current = current.next
+        new_node.next = current.next
+        current.next = new_node
+        self._length += 1
+
+    # ------------------------------------------------------------------
+    # Operaciones de eliminación
+    # ------------------------------------------------------------------
+
+    def delete(self, data):
+        """
+        Elimina el primer nodo que contenga el valor dado. O(n).
+
+        Args:
+            data: valor a eliminar.
+
+        Raises:
+            ValueError: si el valor no se encuentra en la lista.
+        """
+        if self.head is None:
+            raise ValueError(f"{data!r} no encontrado en la lista (lista vacía)")
+
+        if self.head.data == data:
+            self.head = self.head.next
+            self._length -= 1
+            return
+
+        current = self.head
+        while current.next:
+            if current.next.data == data:
+                current.next = current.next.next
+                self._length -= 1
+                return
+            current = current.next
+
+        raise ValueError(f"{data!r} no encontrado en la lista")
+
+    def delete_at(self, index):
+        """
+        Elimina el nodo en la posición indicada. O(n).
+
+        Args:
+            index: posición del nodo a eliminar (0-based).
+
+        Raises:
+            IndexError: si el índice está fuera de rango.
+        """
+        if index < 0 or index >= self._length:
+            raise IndexError(f"Índice {index} fuera de rango (longitud={self._length})")
+
+        if index == 0:
+            self.head = self.head.next
+            self._length -= 1
+            return
+
+        current = self.head
+        for _ in range(index - 1):
+            current = current.next
+        current.next = current.next.next
+        self._length -= 1
+
+    def clear(self):
+        """Vacía la lista. O(1)."""
+        self.head = None
+        self._length = 0
+
+    # ------------------------------------------------------------------
+    # Operaciones de búsqueda y acceso
+    # ------------------------------------------------------------------
+
+    def search(self, data):
+        """
+        Busca el primer nodo con el valor dado y retorna su índice. O(n).
+
+        Returns:
+            int: índice del nodo, o -1 si no se encuentra.
+        """
+        current = self.head
+        index = 0
+        while current:
+            if current.data == data:
+                return index
+            current = current.next
+            index += 1
+        return -1
+
+    def get(self, index):
+        """
+        Retorna el valor del nodo en la posición indicada. O(n).
+
+        Args:
+            index: posición (0-based).
+
+        Raises:
+            IndexError: si el índice está fuera de rango.
+        """
+        if index < 0 or index >= self._length:
+            raise IndexError(f"Índice {index} fuera de rango (longitud={self._length})")
+
+        current = self.head
+        for _ in range(index):
+            current = current.next
+        return current.data
+
+    # ------------------------------------------------------------------
+    # Operaciones de transformación
+    # ------------------------------------------------------------------
+
+    def reverse(self):
+        """Invierte la lista en su lugar. O(n)."""
+        prev = None
+        current = self.head
+        while current:
+            next_node = current.next
+            current.next = prev
+            prev = current
+            current = next_node
+        self.head = prev
+
+    # ------------------------------------------------------------------
+    # Utilidades
+    # ------------------------------------------------------------------
+
+    def to_list(self):
+        """Convierte la LinkedList a una lista de Python. O(n)."""
+        result = []
+        current = self.head
+        while current:
+            result.append(current.data)
+            current = current.next
+        return result
+
+    def length(self):
+        """Retorna el número de nodos en la lista. O(1)."""
+        return self._length
+
+    def is_empty(self):
+        """Retorna True si la lista no tiene nodos. O(1)."""
+        return self._length == 0
+
+    # ------------------------------------------------------------------
+    # Métodos especiales (dunder)
+    # ------------------------------------------------------------------
+
+    def __len__(self):
+        return self._length
+
+    def __iter__(self):
+        current = self.head
+        while current:
+            yield current.data
+            current = current.next
+
+    def __contains__(self, data):
+        return self.search(data) != -1
+
+    def __getitem__(self, index):
+        return self.get(index)
+
+    def __repr__(self):
+        return f"MyLinkedList({self.to_list()})"
+
+    def __str__(self):
+        nodes = []
+        current = self.head
+        while current:
+            nodes.append(str(current.data))
+            current = current.next
+        return " -> ".join(nodes) + " -> NULL" if nodes else "NULL"
+
+    def __eq__(self, other):
+        if isinstance(other, MyLinkedList):
+            return self.to_list() == other.to_list()
+        if isinstance(other, list):
+            return self.to_list() == other
+        return NotImplemented
+
+
+# ------------------------------------------------------------------
+# Ejemplo de uso
+# ------------------------------------------------------------------
+
+if __name__ == "__main__":
+    print("=" * 50)
+    print("  Demo de MyLinkedList")
+    print("=" * 50)
+
+    ll = MyLinkedList([10, 20, 30, 40])
+    print(f"\nLista inicial:      {ll}")
+    print(f"Longitud:           {len(ll)}")
+
+    ll.append(50)
+    print(f"\nDespués de append(50):    {ll}")
+
+    ll.prepend(5)
+    print(f"Después de prepend(5):    {ll}")
+
+    ll.insert(3, 99)
+    print(f"Después de insert(3,99):  {ll}")
+
+    ll.delete(99)
+    print(f"Después de delete(99):    {ll}")
+
+    ll.delete_at(0)
+    print(f"Después de delete_at(0):  {ll}")
+
+    idx = ll.search(30)
+    print(f"\nÍndice de 30:       {idx}")
+    print(f"Valor en índice 2:  {ll.get(2)}")
+    print(f"¿Contiene 40?:      {40 in ll}")
+    print(f"¿Contiene 99?:      {99 in ll}")
+
+    ll.reverse()
+    print(f"\nDespués de reverse():     {ll}")
+
+    print(f"\nComo lista Python:  {ll.to_list()}")
+    print(f"Iteración:          {[x for x in ll]}")
+
+    ll.clear()
+    print(f"\nDespués de clear():       {ll}")
+    print(f"¿Está vacía?:       {ll.is_empty()}")
