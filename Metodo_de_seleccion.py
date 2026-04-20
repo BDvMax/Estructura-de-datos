@@ -6,7 +6,7 @@ Chacon Olvera Christian Andre
 Gomez Ek Adolfo Rene
 Chac Chay José Cristóbal
 Adrian Mauricio Acuña Tejeda
-Natanael
+Jose Natanael Canche Pech
 Zyon Maximo Rodríguez González
 
 """
