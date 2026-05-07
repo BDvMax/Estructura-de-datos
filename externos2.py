@@ -1,1002 +1,369 @@
 """
-╔══════════════════════════════════════════════════════════════════════════╗
-║         MÉTODOS DE ORDENAMIENTO - ARCHIVOS EN DISCO (.txt)             ║
-║  1. Intercalación   2. Mezcla Directa   3. Mezcla Equilibrada          ║
-║  Todos los datos se leen y escriben en archivos .txt del disco          ║
-╚══════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════╗
+║   MÉTODOS DE ORDENAMIENTO — VISUALIZADOR ULTRA                   ║
+║   Soporte: TXT, JSON, Excel | Auto-Detección | Temas Dinámicos   ║
+╚══════════════════════════════════════════════════════════════════╝
 """
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+import time
 import random
 import os
+import json
+import pandas as pd
 
-# ──────────────────────────── Directorio de trabajo ───────────────────────────
-WORK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ordenamiento_datos")
-os.makedirs(WORK_DIR, exist_ok=True)
-
-# Archivos permanentes
-FILE_INPUT    = os.path.join(WORK_DIR, "arreglo_entrada.txt")
-FILE_OUTPUT   = os.path.join(WORK_DIR, "arreglo_salida.txt")
-FILE_LOG      = os.path.join(WORK_DIR, "log_pasos.txt")
-# Cintas para Mezcla Directa
-FILE_CINTA = [os.path.join(WORK_DIR, f"cinta_{i+1}.txt") for i in range(4)]
-# Cintas temporales para Mezcla Equilibrada
-FILE_TEMP  = [os.path.join(WORK_DIR, f"temp_{i+1}.txt") for i in range(4)]
-
-# ─────────────────────────────── Utilidades de disco ──────────────────────────
-
-def escribir_arreglo(path, arr):
-    """Escribe lista de enteros en archivo, uno por línea."""
-    with open(path, "w") as f:
-        for v in arr:
-            f.write(str(v) + "\n")
-
-def leer_arreglo(path):
-    """Lee lista de enteros desde archivo."""
-    if not os.path.exists(path):
-        return []
-    with open(path, "r") as f:
-        lines = f.read().splitlines()
-    return [int(x) for x in lines if x.strip().lstrip("-").isdigit()]
-
-def escribir_runs(path, runs):
-    """Escribe lista de runs (lista de listas) en archivo.
-    Cada run en una línea separada por comas; runs separados por '---'."""
-    with open(path, "w") as f:
-        for run in runs:
-            f.write(",".join(str(v) for v in run) + "\n")
-            f.write("---\n")
-
-def leer_runs(path):
-    """Lee runs desde archivo. Devuelve lista de listas."""
-    if not os.path.exists(path):
-        return []
-    runs = []
-    current = []
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line == "---":
-                if current:
-                    runs.append(current)
-                    current = []
-            elif line:
-                current = [int(x) for x in line.split(",") if x.strip().lstrip("-").isdigit()]
-    if current:
-        runs.append(current)
-    return runs
-
-def agregar_log(path, mensaje):
-    """Agrega una línea al archivo de log."""
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(mensaje + "\n")
-
-def limpiar_log(path):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("=== LOG DE PASOS ===\n")
-
-def limpiar_cintas():
-    for p in FILE_CINTA + FILE_TEMP:
-        with open(p, "w") as f:
-            pass
-
-# ─────────────────────────────── Paletas por módulo ───────────────────────────
-
-PAL = {
-    "menu": {
-        "BG": "#0a0a14", "PANEL": "#12122a",
-        "ACCENT": "#7b2fff", "TEXT": "#c8c8ff", "DIM": "#6666aa"
-    },
-    "intercalacion": {
-        "BG": "#0f0f1a", "PANEL": "#1a1a2e",
-        "DEF": "#2d3561", "SORTED": "#00b4d8",
-        "CUR": "#f72585", "KEY": "#7b2d8b", "CMP": "#ffd60a",
-        "TEXT": "#e0e0ff", "DIM": "#8888aa", "ACCENT": "#f72585"
-    },
-    "mezcla_directa": {
-        "BG": "#0d1117", "PANEL": "#161b22",
-        "DEF": "#264653", "RUN_A": "#e76f51", "RUN_B": "#2a9d8f",
-        "MERGE": "#e9c46a", "DONE": "#57cc99",
-        "TEXT": "#cdd9e5", "DIM": "#768390", "ACCENT": "#e76f51"
-    },
-    "mezcla_eq": {
-        "BG": "#10002b", "PANEL": "#1a0533",
-        "C1": "#9d4edd", "C2": "#3a86ff", "C3": "#fb5607", "C4": "#06d6a0",
-        "MIX": "#ffbe0b", "DONE": "#80b918",
-        "TEXT": "#e0aaff", "DIM": "#9477b4", "ACCENT": "#9d4edd"
-    }
+# --- TEMAS CONFIGURABLES ---
+TEMAS = {
+    "Cyberpunk": {"bg": "#120136", "bg2": "#035AA6", "bg3": "#40BAD5", "accent": "#FCBF49", "text": "#FFFFFF", "bar": "#035AA6", "bar_active": "#FCBF49", "bar_done": "#40BAD5"},
+    "Nórdico": {"bg": "#2E3440", "bg2": "#3B4252", "bg3": "#434C5E", "accent": "#88C0D0", "text": "#ECEFF4", "bar": "#5E81AC", "bar_active": "#EBCB8B", "bar_done": "#A3BE8C"},
+    "Hacker": {"bg": "#0D0D0D", "bg2": "#1A1A1A", "bg3": "#262626", "accent": "#00FF41", "text": "#00FF41", "bar": "#008F11", "bar_active": "#FFFFFF", "bar_done": "#00FF41"},
+    "Solarizado": {"bg": "#FDF6E3", "bg2": "#EEE8D5", "bg3": "#93A1A1", "accent": "#268BD2", "text": "#657B83", "bar": "#2AA198", "bar_active": "#CB4B16", "bar_done": "#859900"}
 }
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  VENTANA PRINCIPAL — MENÚ
-# ══════════════════════════════════════════════════════════════════════════════
+FONT_TIT = ("Segoe UI", 16, "bold")
+FONT_BTN = ("Segoe UI", 10, "bold")
+FONT_SM = ("Segoe UI", 9)
 
-class MenuApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Métodos de Ordenamiento — Archivos en Disco")
-        self.root.configure(bg=PAL["menu"]["BG"])
-        self.root.geometry("700x520")
-        self.root.resizable(False, False)
-        self._build()
+# ─────────────────────────────────────────────────────────
+#  LÓGICA DE ALGORITMOS (Adaptada para Texto y Números)
+# ─────────────────────────────────────────────────────────
 
-    def _build(self):
-        p = PAL["menu"]
-        tk.Label(self.root,
-                 text="MÉTODOS DE ORDENAMIENTO",
-                 font=("Courier New", 20, "bold"),
-                 bg=p["BG"], fg=p["ACCENT"]).pack(pady=(30, 4))
-        tk.Label(self.root,
-                 text="Todos los datos se guardan en archivos .txt del disco",
-                 font=("Courier New", 11),
-                 bg=p["BG"], fg=p["DIM"]).pack()
-
-        # Directorio activo
-        tk.Label(self.root,
-                 text=f"📁  Directorio: {WORK_DIR}",
-                 font=("Courier New", 9),
-                 bg=p["BG"], fg=p["DIM"]).pack(pady=(4, 20))
-
-        # Botones de método
-        metodos = [
-            ("🃏   1. Intercalación", "#f72585", self._abrir_intercalacion),
-            ("🔀   2. Mezcla Directa", "#e76f51", self._abrir_mezcla_directa),
-            ("🎞   3. Mezcla Equilibrada", "#9d4edd", self._abrir_mezcla_eq),
-        ]
-        for texto, color, cmd in metodos:
-            tk.Button(self.root, text=texto,
-                      font=("Courier New", 14, "bold"),
-                      bg=p["PANEL"], fg=color,
-                      activebackground=color, activeforeground="white",
-                      relief="flat", padx=20, pady=12,
-                      cursor="hand2", width=30, command=cmd
-                      ).pack(pady=8)
-
-        # Botón ver archivos
-        tk.Button(self.root, text="📂  Abrir carpeta de archivos",
-                  font=("Courier New", 10),
-                  bg=p["PANEL"], fg=p["TEXT"],
-                  relief="flat", padx=10, pady=6,
-                  cursor="hand2", command=self._abrir_carpeta
-                  ).pack(pady=(16, 4))
-
-        # Info archivos
-        self.info_var = tk.StringVar(value=self._status())
-        tk.Label(self.root, textvariable=self.info_var,
-                 font=("Courier New", 9),
-                 bg=p["BG"], fg=p["DIM"]).pack(pady=4)
-
-    def _status(self):
-        arr = leer_arreglo(FILE_INPUT)
-        return f"arreglo_entrada.txt → {len(arr)} elementos  |  arreglo_salida.txt  |  log_pasos.txt  |  cintas 1-4"
-
-    def _abrir_carpeta(self):
-        import subprocess, sys
-        if sys.platform == "win32":
-            os.startfile(WORK_DIR)
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", WORK_DIR])
+def intercalacion_pasos(a, b):
+    pasos, resultado = [], []
+    i = j = 0
+    a_sort, b_sort = sorted(a), sorted(b)
+    while i < len(a_sort) and j < len(b_sort):
+        pasos.append(("cmp", list(resultado), i, j))
+        if a_sort[i] <= b_sort[j]:
+            resultado.append(a_sort[i]); i += 1
         else:
-            subprocess.Popen(["xdg-open", WORK_DIR])
+            resultado.append(b_sort[j]); j += 1
+        pasos.append(("add", list(resultado), i, j))
+    while i < len(a_sort):
+        resultado.append(a_sort[i]); i += 1
+        pasos.append(("add", list(resultado), i, j))
+    while j < len(b_sort):
+        resultado.append(b_sort[j]); j += 1
+        pasos.append(("add", list(resultado), i, j))
+    return resultado, pasos
 
-    def _abrir_intercalacion(self):
-        w = tk.Toplevel(self.root)
-        IntercalacionApp(w)
+def mezcla_directa_pasos(lista):
+    pasos = []
+    def merge_sort(a):
+        if len(a) <= 1: return a
+        m = len(a) // 2
+        L, R = merge_sort(a[:m]), merge_sort(a[m:])
+        return merge(L, R)
+    def merge(L, R):
+        res, i, j = [], 0, 0
+        while i < len(L) and j < len(R):
+            if L[i] <= R[j]: res.append(L[i]); i += 1
+            else: res.append(R[j]); j += 1
+            pasos.append(list(res) + L[i:] + R[j:])
+        res += L[i:] + R[j:]
+        pasos.append(list(res))
+        return res
+    resultado = merge_sort(list(lista))
+    return resultado, pasos
 
-    def _abrir_mezcla_directa(self):
-        w = tk.Toplevel(self.root)
-        MezclaDirectaApp(w)
+def mezcla_equilibrada_pasos(lista, k=3):
+    pasos = []
+    sublistas = [[] for _ in range(k)]
+    for idx, el in enumerate(lista): sublistas[idx % k].append(el)
+    sublistas = [sorted(s) for s in sublistas if s]
+    pasos.append(("split", [item for s in sublistas for item in s]))
+    def merge2(a, b):
+        res, i, j = [], 0, 0
+        while i < len(a) and j < len(b):
+            if a[i] <= b[j]: res.append(a[i]); i += 1
+            else: res.append(b[j]); j += 1
+        return res + a[i:] + b[j:]
+    while len(sublistas) > 1:
+        nueva = []
+        for i in range(0, len(sublistas), 2):
+            if i + 1 < len(sublistas): nueva.append(merge2(sublistas[i], sublistas[i+1]))
+            else: nueva.append(sublistas[i])
+        sublistas = nueva
+        pasos.append(("merge", sublistas[0] if len(sublistas) == 1 else [x for s in sublistas for x in s]))
+    return sublistas[0], pasos
 
-    def _abrir_mezcla_eq(self):
-        w = tk.Toplevel(self.root)
-        MezclaEquilibradaApp(w)
+# ─────────────────────────────────────────────────────────
+#  APLICACIÓN PRINCIPAL
+# ─────────────────────────────────────────────────────────
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  MÓDULO 1: INTERCALACIÓN
-# ══════════════════════════════════════════════════════════════════════════════
-
-class IntercalacionApp:
+class OrdenamientoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Intercalación — Insertion Sort")
-        p = PAL["intercalacion"]
-        self.p = p
-        self.root.configure(bg=p["BG"])
-        self.root.geometry("960x700")
-        self.root.resizable(False, False)
-        self.array = []
-        self.animating = False
-        self.paused = False
-        self.delay = 600
-        self.step_gen = None
+        self.root.title("Visualizador de Ordenamiento Dinámico")
+        self.root.geometry("1100x800")
+        
+        self.tema_actual = "Cyberpunk"
+        self.c = TEMAS[self.tema_actual]
+        self.animando = False
+        self.datos_actuales = []
+        self.metodo_actual = "directa"
+        
+        self.widgets_tema = [] # Para actualizar colores dinámicamente
         self._build_ui()
-        self._cargar_desde_disco()
+        self._aplicar_tema(self.tema_actual)
+        self._generar_aleatorios()
 
-    # ── UI ──
+    def _reg_w(self, widget, t_bg="bg", t_fg="text"):
+        """Registra un widget para actualizar su color con el tema."""
+        self.widgets_tema.append((widget, t_bg, t_fg))
+        return widget
+
     def _build_ui(self):
-        p = self.p
-        tk.Label(self.root, text="🃏  INTERCALACIÓN  (Insertion Sort)",
-                 font=("Courier New", 17, "bold"), bg=p["BG"], fg=p["ACCENT"]
-                 ).pack(pady=(12, 2))
-        tk.Label(self.root,
-                 text="Lee/escribe arreglo en  arreglo_entrada.txt  y  arreglo_salida.txt",
-                 font=("Courier New", 9), bg=p["BG"], fg=p["DIM"]).pack()
+        # --- HEADER ---
+        self.hdr = self._reg_w(tk.Frame(self.root, pady=10))
+        self.hdr.pack(fill="x")
+        self.lbl_main = self._reg_w(tk.Label(self.hdr, text="⬡ ORDENAMIENTO ULTRA ⬡", font=FONT_TIT), "bg", "accent")
+        self.lbl_main.pack()
 
-        self.canvas = tk.Canvas(self.root, width=920, height=230,
-                                bg=p["PANEL"], highlightthickness=0)
-        self.canvas.pack(padx=20, pady=6)
+        body = self._reg_w(tk.Frame(self.root))
+        body.pack(fill="both", expand=True, padx=15, pady=10)
 
-        # Leyenda
-        leg = tk.Frame(self.root, bg=p["BG"])
-        leg.pack(pady=2)
-        for col, txt in [(p["DEF"],"Sin procesar"),(p["SORTED"],"Ordenado"),
-                         (p["CUR"],"Actual (i)"),(p["KEY"],"Clave key"),(p["CMP"],"Comparando")]:
-            f = tk.Frame(leg, bg=p["BG"]); f.pack(side="left", padx=8)
-            tk.Label(f, width=3, bg=col, relief="flat").pack(side="left")
-            tk.Label(f, text=txt, font=("Courier New", 9), bg=p["BG"], fg=p["TEXT"]).pack(side="left", padx=2)
+        # --- SIDEBAR IZQUIERDA (Controles) ---
+        side = self._reg_w(tk.Frame(body, width=260), "bg2")
+        side.pack(side="left", fill="y", padx=(0, 10))
+        side.pack_propagate(False)
 
-        self.info_var = tk.StringVar(value="Cargando desde disco...")
-        tk.Label(self.root, textvariable=self.info_var,
-                 font=("Courier New", 11, "bold"), bg=p["BG"], fg=p["TEXT"],
-                 wraplength=900, justify="center").pack(pady=4)
+        # Configuración Dinámica
+        self._reg_w(tk.Label(side, text="⚙️ CONFIGURACIÓN", font=FONT_SM)).pack(pady=(10,5))
+        
+        frame_configs = self._reg_w(tk.Frame(side), "bg2")
+        frame_configs.pack(fill="x", padx=10)
+        self._reg_w(tk.Label(frame_configs, text="Tema:", font=FONT_SM)).grid(row=0, column=0, sticky="w")
+        self.combo_tema = ttk.Combobox(frame_configs, values=list(TEMAS.keys()), state="readonly", width=12)
+        self.combo_tema.set(self.tema_actual)
+        self.combo_tema.bind("<<ComboboxSelected>>", lambda e: self._aplicar_tema(self.combo_tema.get()))
+        self.combo_tema.grid(row=0, column=1, pady=2)
 
-        # Pseudocódigo
-        pc = tk.Frame(self.root, bg=p["PANEL"]); pc.pack(padx=20, fill="x", pady=2)
-        tk.Label(pc, text="  Pseudocódigo:", font=("Courier New", 9,"bold"),
-                 bg=p["PANEL"], fg=p["ACCENT"]).pack(anchor="w")
-        lineas = [
-            "  para i = 1 hasta n-1:",
-            "      key = arreglo[i]          # elemento a intercalar",
-            "      j = i - 1",
-            "      mientras j >= 0 y arreglo[j] > key:",
-            "          arreglo[j+1] = arreglo[j]    # desplaza derecha",
-            "          j = j - 1",
-            "      arreglo[j+1] = key        # inserta en lugar correcto",
-        ]
-        self.code_labels = []
-        for l in lineas:
-            lbl = tk.Label(pc, text=l, font=("Courier New", 9),
-                           bg=p["PANEL"], fg=p["DIM"], anchor="w")
-            lbl.pack(fill="x"); self.code_labels.append(lbl)
+        self._reg_w(tk.Label(frame_configs, text="Vías (K):", font=FONT_SM)).grid(row=1, column=0, sticky="w")
+        self.spin_k = tk.Spinbox(frame_configs, from_=2, to=10, width=5)
+        self.spin_k.delete(0, "end"); self.spin_k.insert(0, "3")
+        self.spin_k.grid(row=1, column=1, sticky="w", pady=2)
 
-        # Controles
-        ctrl = tk.Frame(self.root, bg=p["BG"]); ctrl.pack(pady=8)
-        bs = dict(font=("Courier New", 10,"bold"), bg=p["PANEL"], fg=p["TEXT"],
-                  relief="flat", activebackground=p["ACCENT"], activeforeground="white",
-                  padx=10, pady=5, cursor="hand2")
-        tk.Button(ctrl, text="🔀 Generar aleatorio", command=self._generar, **bs).pack(side="left", padx=4)
-        tk.Button(ctrl, text="📂 Cargar .txt", command=self._cargar_archivo, **bs).pack(side="left", padx=4)
-        self.btn_start = tk.Button(ctrl, text="▶ Iniciar", command=self.start_sort, **bs)
-        self.btn_start.pack(side="left", padx=4)
-        self.btn_pause = tk.Button(ctrl, text="⏸ Pausar", command=self.toggle_pause,
-                                   state="disabled", **bs)
-        self.btn_pause.pack(side="left", padx=4)
-        tk.Label(ctrl, text=" Vel:", font=("Courier New",9), bg=p["BG"], fg=p["DIM"]).pack(side="left")
-        self.speed = tk.IntVar(value=50)
-        ttk.Scale(ctrl, from_=1, to=100, variable=self.speed, orient="horizontal", length=100,
-                  command=lambda v: self._upd_delay()).pack(side="left", padx=4)
+        # Métodos
+        self._reg_w(tk.Label(side, text="ALGORITMO", font=FONT_SM)).pack(pady=(15,5))
+        self.btn_metodos = {}
+        for label, key in [("Intercalación", "intercalacion"), ("Mezcla Directa", "directa"), ("Mezcla Equilibrada", "equilibrada")]:
+            btn = tk.Button(side, text=label, font=FONT_SM, bd=0, cursor="hand2", command=lambda k=key: self._sel_metodo(k))
+            btn.pack(fill="x", padx=10, pady=2)
+            self.widgets_tema.append((btn, "bg3", "text"))
+            self.btn_metodos[key] = btn
 
-        self.stat_var = tk.StringVar(value="Comparaciones: 0  |  Desplazamientos: 0")
-        tk.Label(self.root, textvariable=self.stat_var,
-                 font=("Courier New", 9), bg=p["BG"], fg=p["DIM"]).pack()
+        # Gestión de Datos
+        self._reg_w(tk.Label(side, text="DATOS", font=FONT_SM)).pack(pady=(15,5))
+        btn_rand = tk.Button(side, text="🎲 Generar Aleatorios", font=FONT_SM, bd=0, cursor="hand2", command=self._generar_aleatorios)
+        btn_rand.pack(fill="x", padx=10, pady=2)
+        self.widgets_tema.append((btn_rand, "bg3", "text"))
 
-        # Log
-        log_f = tk.Frame(self.root, bg=p["PANEL"]); log_f.pack(padx=20, fill="x", pady=2)
-        tk.Label(log_f, text=f"  Log → {FILE_LOG}", font=("Courier New",8),
-                 bg=p["PANEL"], fg=p["DIM"]).pack(anchor="w")
+        btn_load = tk.Button(side, text="📂 Cargar (TXT/XLSX/JSON)", font=FONT_SM, bd=0, cursor="hand2", command=self._cargar_archivo)
+        btn_load.pack(fill="x", padx=10, pady=2)
+        self.widgets_tema.append((btn_load, "bg3", "text"))
 
-    # ── Disco ──
-    def _cargar_desde_disco(self):
-        arr = leer_arreglo(FILE_INPUT)
-        if arr:
-            self.array = arr
-            self.info_var.set(f"✅ Cargado desde disco: {len(arr)} elementos")
+        btn_save = tk.Button(side, text="💾 Guardar Resultados", font=FONT_SM, bd=0, cursor="hand2", command=self._guardar_archivo)
+        btn_save.pack(fill="x", padx=10, pady=2)
+        self.widgets_tema.append((btn_save, "bg3", "text"))
+
+        # Velocidad y Ejecución
+        self._reg_w(tk.Label(side, text="VELOCIDAD", font=FONT_SM)).pack(pady=(15,5))
+        self.vel_slider = tk.Scale(side, from_=0.01, to=1.0, resolution=0.05, orient="horizontal", bd=0, highlightthickness=0)
+        self.vel_slider.set(0.2)
+        self.vel_slider.pack(fill="x", padx=10)
+        self.widgets_tema.append((self.vel_slider, "bg2", "text"))
+
+        self.btn_run = tk.Button(side, text="▶️ INICIAR ORDENAMIENTO", font=FONT_BTN, bd=0, pady=12, cursor="hand2", command=self._ejecutar)
+        self.btn_run.pack(fill="x", padx=10, pady=20)
+        self.widgets_tema.append((self.btn_run, "accent", "bg")) # Texto oscuro para contraste
+
+        # --- AREA PRINCIPAL ---
+        main = self._reg_w(tk.Frame(body))
+        main.pack(side="left", fill="both", expand=True)
+        
+        self.lbl_titulo = self._reg_w(tk.Label(main, text="Esperando datos...", font=("Consolas", 12, "bold"), anchor="w"), "bg", "accent")
+        self.lbl_titulo.pack(fill="x")
+
+        self.canvas = tk.Canvas(main, height=350, highlightthickness=0)
+        self.canvas.pack(fill="x", pady=5)
+
+        self.log = tk.Text(main, font=("Consolas", 10), bd=0, padx=10, pady=10)
+        self.log.pack(fill="both", expand=True)
+        self.widgets_tema.append((self.log, "bg2", "text"))
+
+    def _aplicar_tema(self, nombre_tema):
+        self.tema_actual = nombre_tema
+        self.c = TEMAS[nombre_tema]
+        self.root.configure(bg=self.c["bg"])
+        self.canvas.configure(bg=self.c["bg2"])
+        
+        for widget, t_bg, t_fg in self.widgets_tema:
+            try:
+                widget.configure(bg=self.c[t_bg], fg=self.c[t_fg])
+                if isinstance(widget, tk.Scale):
+                    widget.configure(troughcolor=self.c["bg3"])
+            except: pass
+        self._sel_metodo(self.metodo_actual) # Refrescar botones
+        self._dibujar(self.datos_actuales)
+
+    def _sel_metodo(self, metodo):
+        self.metodo_actual = metodo
+        for k, b in self.btn_metodos.items():
+            b.configure(bg=self.c["accent"] if k == metodo else self.c["bg3"], 
+                        fg=self.c["bg"] if k == metodo else self.c["text"])
+        
+        tipo = type(self.datos_actuales[0]).__name__ if self.datos_actuales else "Desconocido"
+        self.lbl_titulo.config(text=f"MODO: {self.metodo_actual.upper()} | Tipo Dominante: {tipo} | Elementos: {len(self.datos_actuales)}")
+
+    def _generar_aleatorios(self):
+        opcion = random.choice(["numeros", "texto"])
+        if opcion == "numeros":
+            self.datos_actuales = [random.randint(1, 100) for _ in range(20)]
         else:
-            self._generar()
+            palabras = ["Python", "Java", "C++", "Ruby", "Rust", "Go", "Perl", "Lua", "Swift", "PHP", "Dart", "Kotlin", "Scala", "R"]
+            self.datos_actuales = [random.choice(palabras) for _ in range(15)]
+        
+        self._log_msg(f"Datos aleatorios generados ({opcion}).")
+        self._sel_metodo(self.metodo_actual)
+        self._dibujar(self.datos_actuales)
 
-    def _generar(self):
-        if self.animating: return
-        arr = random.sample(range(5, 100), 13)
-        escribir_arreglo(FILE_INPUT, arr)
-        limpiar_log(FILE_LOG)
-        agregar_log(FILE_LOG, f"Arreglo generado: {arr}")
-        self.array = arr
-        self._highlight_code(-1)
-        self.info_var.set(f"✅ Generado y guardado en arreglo_entrada.txt  ({len(arr)} elementos)")
-        self.stat_var.set("Comparaciones: 0  |  Desplazamientos: 0")
-        self.draw()
+    def _procesar_y_filtrar_datos(self, raw_data):
+        numeros, textos = [], []
+        for item in raw_data:
+            if pd.isna(item) or item == "": continue
+            try: numeros.append(float(item) if '.' in str(item) else int(item))
+            except ValueError: textos.append(str(item).strip())
+        
+        # Filtro inteligente: Nos quedamos con la mayoría
+        if len(numeros) >= len(textos) and numeros:
+            self._log_msg(f"Detección: NÚMEROS. Se descartaron {len(textos)} valores de texto incompatibles.")
+            return numeros
+        elif textos:
+            self._log_msg(f"Detección: TEXTO. Se descartaron {len(numeros)} valores numéricos incompatibles.")
+            return textos
+        return []
 
     def _cargar_archivo(self):
-        if self.animating: return
-        path = filedialog.askopenfilename(
-            title="Seleccionar archivo de datos",
-            initialdir=WORK_DIR,
-            filetypes=[("Archivos de texto", "*.txt")])
-        if path:
-            arr = leer_arreglo(path)
-            if arr:
-                self.array = arr
-                escribir_arreglo(FILE_INPUT, arr)
-                limpiar_log(FILE_LOG)
-                agregar_log(FILE_LOG, f"Archivo cargado: {path}")
-                agregar_log(FILE_LOG, f"Arreglo: {arr}")
-                self.info_var.set(f"✅ Cargado: {os.path.basename(path)}  ({len(arr)} elementos)")
-                self.draw()
+        ruta = filedialog.askopenfilename(filetypes=[("Todos soportados", "*.txt *.xlsx *.xls *.json")])
+        if not ruta: return
+        try:
+            raw = []
+            ext = os.path.splitext(ruta)[1].lower()
+            if ext in ['.xlsx', '.xls']:
+                df = pd.read_excel(ruta, header=None)
+                raw = df.values.flatten().tolist()
+            elif ext == '.json':
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    raw = data if isinstance(data, list) else list(data.values())
+            elif ext == '.txt':
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    for line in f: raw.extend(line.replace(',', ' ').split())
+
+            datos_limpios = self._procesar_y_filtrar_datos(raw)
+            if not datos_limpios: raise ValueError("El archivo está vacío o sin datos válidos.")
+            
+            self.datos_actuales = datos_limpios
+            self._sel_metodo(self.metodo_actual)
+            self._dibujar(self.datos_actuales)
+            messagebox.showinfo("Éxito", f"Datos cargados desde {os.path.basename(ruta)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al leer archivo:\n{e}")
+
+    def _guardar_archivo(self):
+        if not self.datos_actuales:
+            messagebox.showwarning("Atención", "No hay datos para guardar.")
+            return
+        ruta = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("JSON", "*.json"), ("Excel", "*.xlsx"), ("Texto", "*.txt")])
+        if not ruta: return
+        
+        try:
+            ext = os.path.splitext(ruta)[1].lower()
+            if ext == '.json':
+                with open(ruta, 'w', encoding='utf-8') as f: json.dump(self.datos_actuales, f)
+            elif ext == '.xlsx':
+                pd.DataFrame(self.datos_actuales).to_excel(ruta, index=False, header=False)
             else:
-                messagebox.showerror("Error", "No se encontraron números en el archivo.")
+                with open(ruta, 'w', encoding='utf-8') as f: f.write(", ".join(map(str, self.datos_actuales)))
+            self._log_msg(f"Archivo guardado en: {ruta}")
+            messagebox.showinfo("Guardado", "Resultados exportados con éxito.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar:\n{e}")
 
-    def _upd_delay(self):
-        self.delay = max(50, int(1200 - self.speed.get() * 11))
-
-    def _highlight_code(self, idx):
-        p = self.p
-        for i, lbl in enumerate(self.code_labels):
-            lbl.config(bg=p["PANEL"] if i != idx else p["ACCENT"],
-                       fg=p["DIM"] if i != idx else "white")
-
-    def draw(self, colors=None):
-        p = self.p
+    def _dibujar(self, valores, activos=[], listos=[]):
         self.canvas.delete("all")
-        arr = self.array; n = len(arr)
-        if not n: return
-        w, h = 920, 230
-        bw = w // n - 4; mx = max(arr)
-        cols = colors if colors else [p["DEF"]] * n
-        for i, v in enumerate(arr):
-            x0 = i*(bw+4)+8; bh = int((v/mx)*(h-45)); y0 = h-bh-8
-            x1, y1 = x0+bw, h-8
-            self.canvas.create_rectangle(x0+2,y0+2,x1+2,y1+2, fill="#00000033", outline="")
-            self.canvas.create_rectangle(x0,y0,x1,y1, fill=cols[i], outline="")
-            self.canvas.create_text(x0+bw//2, y0-10, text=str(v),
-                                    font=("Courier New",8,"bold"), fill="white")
+        if not valores: return
+        W, H = int(self.canvas.winfo_width() or 800), int(self.canvas.winfo_height() or 350)
+        n = len(valores)
+        ancho = min((W - 40) / n, 80) # Límite de grosor
+        
+        # Lógica para graficar cualquier tipo de dato (rankeando su valor ordenado)
+        valores_unicos = sorted(list(set(valores)))
+        
+        for i, v in enumerate(valores):
+            rank = valores_unicos.index(v) + 1
+            h = (rank / len(valores_unicos)) * (H - 60) if valores_unicos else 100
+            
+            x1, y1 = 20 + i * ancho, H - 30 - h
+            x2, y2 = x1 + ancho - 2, H - 30
+            
+            color = self.c["bar_done"] if i in listos else (self.c["bar_active"] if i in activos else self.c["bar"])
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="")
+            
+            text_disp = str(v)
+            if len(text_disp) > 8: text_disp = text_disp[:6]+".."
+            self.canvas.create_text(x1 + ancho/2, y1 - 15, text=text_disp, fill=self.c["text"], font=("Consolas", 8), angle=0 if type(v) != str else 45)
 
-    # ── Animación ──
-    def start_sort(self):
-        if self.animating or not self.array: return
-        limpiar_log(FILE_LOG)
-        agregar_log(FILE_LOG, f"INICIO Intercalación — arreglo: {self.array}")
-        self.animating = True
-        self.btn_start.config(state="disabled")
-        self.btn_pause.config(state="normal")
-        self.paused = False
-        self.comparisons = self.shifts = 0
-        self.step_gen = self._gen()
-        self._next()
+    def _log_msg(self, msg):
+        self.log.insert(tk.END, f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+        self.log.see(tk.END)
 
-    def toggle_pause(self):
-        self.paused = not self.paused
-        self.btn_pause.config(text="▶ Reanudar" if self.paused else "⏸ Pausar")
-        if not self.paused: self._next()
-
-    def _next(self):
-        if self.paused or not self.animating: return
+    def _ejecutar(self):
+        if self.animando or not self.datos_actuales: return
+        self.animando = True
+        delay = self.vel_slider.get()
+        m = self.metodo_actual
+        self.log.delete("1.0", tk.END)
+        
         try:
-            next(self.step_gen)
-            self.root.after(self.delay, self._next)
-        except StopIteration:
-            self._finish()
+            if m == "intercalacion":
+                # Intercalar requiere 2 listas, dividiremos la actual a la mitad aleatoriamente
+                mitad = len(self.datos_actuales) // 2
+                a, b = self.datos_actuales[:mitad], self.datos_actuales[mitad:]
+                self._log_msg(f"Intercalando 2 sublistas (tamaños {len(a)} y {len(b)})...")
+                res, pasos = intercalacion_pasos(a, b)
+                for p in pasos:
+                    self._dibujar(a + b, activos=[p[2], len(a)+p[3]])
+                    self.root.update(); time.sleep(delay)
+                self.datos_actuales = res
+            
+            elif m == "directa":
+                self._log_msg("Iniciando Mezcla Directa...")
+                res, pasos = mezcla_directa_pasos(self.datos_actuales)
+                for p in pasos:
+                    self._dibujar(p)
+                    self.root.update(); time.sleep(delay)
+                self.datos_actuales = res
 
-    def _finish(self):
-        p = self.p
-        self.animating = False
-        self.draw([p["SORTED"]]*len(self.array))
-        escribir_arreglo(FILE_OUTPUT, self.array)
-        agregar_log(FILE_LOG, f"FIN — arreglo ordenado: {self.array}")
-        agregar_log(FILE_LOG, f"Comparaciones: {self.comparisons}  Desplazamientos: {self.shifts}")
-        self.btn_start.config(state="normal")
-        self.btn_pause.config(state="disabled", text="⏸ Pausar")
-        self._highlight_code(-1)
-        self.info_var.set("✅ Ordenado. Resultado guardado en arreglo_salida.txt y log_pasos.txt")
+            elif m == "equilibrada":
+                k_val = int(self.spin_k.get())
+                self._log_msg(f"Iniciando Mezcla Equilibrada (K={k_val})...")
+                res, pasos = mezcla_equilibrada_pasos(self.datos_actuales, k=k_val)
+                for p in pasos:
+                    self._dibujar(p[1])
+                    self.root.update(); time.sleep(delay)
+                self.datos_actuales = res
 
-    def _gen(self):
-        p = self.p; arr = self.array; n = len(arr)
-        for i in range(1, n):
-            key = arr[i]; j = i-1
-            cols = [p["SORTED"]]*i + [p["DEF"]]*(n-i)
-            cols[i] = p["CUR"]
-            self._highlight_code(0)
-            self.info_var.set(f"i={i}  key={key}  (leyendo arreglo_entrada.txt pos {i})")
-            agregar_log(FILE_LOG, f"[i={i}] key={key}  arreglo: {arr}")
-            self.draw(cols); yield
-            cols[i] = p["KEY"]; self._highlight_code(1); self.draw(cols); yield
-            while j >= 0 and arr[j] > key:
-                self.comparisons += 1
-                self.stat_var.set(f"Comparaciones: {self.comparisons}  |  Desplazamientos: {self.shifts}")
-                c2 = cols[:]
-                c2[j] = p["CMP"]; c2[j+1] = p["KEY"]
-                self._highlight_code(3)
-                self.info_var.set(f"arr[{j}]={arr[j]} > key={key} → desplazar ▶")
-                self.draw(c2); yield
-                arr[j+1] = arr[j]; self.shifts += 1
-                self._highlight_code(4)
-                cols = [p["SORTED"]]*(i+1) + [p["DEF"]]*(n-i-1)
-                cols[j+1] = p["CMP"]; self.draw(cols); yield
-                j -= 1
-            arr[j+1] = key
-            self.comparisons += 1
-            self.stat_var.set(f"Comparaciones: {self.comparisons}  |  Desplazamientos: {self.shifts}")
-            cols = [p["SORTED"]]*(i+1) + [p["DEF"]]*(n-i-1)
-            cols[j+1] = p["KEY"]; self._highlight_code(6)
-            self.info_var.set(f"key={key} insertado en posición {j+1}")
-            # Guardar estado parcial en disco
-            escribir_arreglo(FILE_OUTPUT, arr)
-            self.draw(cols); yield
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  MÓDULO 2: MEZCLA DIRECTA
-# ══════════════════════════════════════════════════════════════════════════════
-
-class MezclaDirectaApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Mezcla Directa — Straight Merge Sort")
-        p = PAL["mezcla_directa"]
-        self.p = p
-        self.root.configure(bg=p["BG"])
-        self.root.geometry("960x710")
-        self.root.resizable(False, False)
-        self.array = []
-        self.animating = False
-        self.paused = False
-        self.delay = 500
-        self.step_gen = None
-        self._build_ui()
-        self._cargar_desde_disco()
-
-    def _build_ui(self):
-        p = self.p
-        tk.Label(self.root, text="🔀  MEZCLA DIRECTA  (Straight Merge Sort)",
-                 font=("Courier New", 17, "bold"), bg=p["BG"], fg=p["ACCENT"]
-                 ).pack(pady=(12,2))
-        tk.Label(self.root,
-                 text="Lee/escribe cinta_1.txt … cinta_4.txt y arreglo_salida.txt",
-                 font=("Courier New", 9), bg=p["BG"], fg=p["DIM"]).pack()
-
-        self.canvas = tk.Canvas(self.root, width=920, height=210,
-                                bg=p["PANEL"], highlightthickness=0)
-        self.canvas.pack(padx=20, pady=4)
-
-        leg = tk.Frame(self.root, bg=p["BG"]); leg.pack(pady=2)
-        for col, txt in [(p["DEF"],"Sin procesar"),(p["RUN_A"],"Run A"),
-                         (p["RUN_B"],"Run B"),(p["MERGE"],"Mezclando"),(p["DONE"],"Ordenado")]:
-            f = tk.Frame(leg, bg=p["BG"]); f.pack(side="left", padx=7)
-            tk.Label(f, width=3, bg=col, relief="flat").pack(side="left")
-            tk.Label(f, text=txt, font=("Courier New",9), bg=p["BG"], fg=p["TEXT"]).pack(side="left",padx=2)
-
-        self.info_var = tk.StringVar(value="Cargando desde disco...")
-        tk.Label(self.root, textvariable=self.info_var,
-                 font=("Courier New", 11, "bold"), bg=p["BG"], fg=p["TEXT"],
-                 wraplength=900, justify="center").pack(pady=3)
-
-        self.runs_var = tk.StringVar(value="")
-        tk.Label(self.root, textvariable=self.runs_var,
-                 font=("Courier New", 9), bg=p["BG"], fg=p["RUN_A"],
-                 wraplength=900, justify="center").pack()
-
-        pc = tk.Frame(self.root, bg=p["PANEL"]); pc.pack(padx=20, fill="x", pady=2)
-        tk.Label(pc, text="  Pseudocódigo:", font=("Courier New",9,"bold"),
-                 bg=p["PANEL"], fg=p["ACCENT"]).pack(anchor="w")
-        lineas = [
-            "  1. Detectar runs: secuencias ascendentes naturales  → escribe cinta_1.txt / cinta_2.txt",
-            "  2. Si 1 solo run → ¡listo! Guardar en arreglo_salida.txt",
-            "  3. Mezclar runs adyacentes (cinta_1 + cinta_2) → cinta_3 / cinta_4",
-            "     mientras A y B tengan elementos: menor al resultado",
-            "     copiar restos de A o B",
-            "  4. Resultado (cintas más grandes) → nueva cinta_1 / cinta_2 → ir a 1",
-        ]
-        self.code_labels = []
-        for l in lineas:
-            lbl = tk.Label(pc, text=l, font=("Courier New",9),
-                           bg=p["PANEL"], fg=p["DIM"], anchor="w")
-            lbl.pack(fill="x"); self.code_labels.append(lbl)
-
-        ctrl = tk.Frame(self.root, bg=p["BG"]); ctrl.pack(pady=6)
-        bs = dict(font=("Courier New",10,"bold"), bg=p["PANEL"], fg=p["TEXT"],
-                  relief="flat", activebackground=p["ACCENT"], activeforeground="white",
-                  padx=10, pady=5, cursor="hand2")
-        tk.Button(ctrl, text="🔀 Generar aleatorio", command=self._generar, **bs).pack(side="left",padx=4)
-        tk.Button(ctrl, text="📂 Cargar .txt", command=self._cargar_archivo, **bs).pack(side="left",padx=4)
-        self.btn_start = tk.Button(ctrl, text="▶ Iniciar", command=self.start_sort, **bs)
-        self.btn_start.pack(side="left",padx=4)
-        self.btn_pause = tk.Button(ctrl, text="⏸ Pausar", command=self.toggle_pause,
-                                   state="disabled", **bs)
-        self.btn_pause.pack(side="left",padx=4)
-        tk.Label(ctrl, text=" Vel:", font=("Courier New",9), bg=p["BG"], fg=p["DIM"]).pack(side="left")
-        self.speed = tk.IntVar(value=50)
-        ttk.Scale(ctrl, from_=1, to=100, variable=self.speed, orient="horizontal", length=100,
-                  command=lambda v: self._upd_delay()).pack(side="left",padx=4)
-
-        self.stat_var = tk.StringVar(value="Pasadas: 0  |  Mezclas: 0  |  Comparaciones: 0")
-        tk.Label(self.root, textvariable=self.stat_var,
-                 font=("Courier New",9), bg=p["BG"], fg=p["DIM"]).pack()
-
-        tk.Label(self.root, text=f"Cintas: {WORK_DIR}",
-                 font=("Courier New",8), bg=p["BG"], fg=p["DIM"]).pack(pady=2)
-
-    def _cargar_desde_disco(self):
-        arr = leer_arreglo(FILE_INPUT)
-        if arr:
-            self.array = arr
-            self.info_var.set(f"✅ Cargado: {len(arr)} elementos de arreglo_entrada.txt")
-        else:
-            self._generar()
-
-    def _generar(self):
-        if self.animating: return
-        arr = random.sample(range(4, 99), 14)
-        escribir_arreglo(FILE_INPUT, arr)
-        limpiar_log(FILE_LOG)
-        limpiar_cintas()
-        agregar_log(FILE_LOG, f"Arreglo generado: {arr}")
-        self.array = arr
-        self._highlight_code(-1); self.runs_var.set("")
-        self.stat_var.set("Pasadas: 0  |  Mezclas: 0  |  Comparaciones: 0")
-        self.info_var.set(f"✅ Generado → arreglo_entrada.txt  ({len(arr)} elementos)")
-        self.draw([self.p["DEF"]]*len(arr))
-
-    def _cargar_archivo(self):
-        if self.animating: return
-        path = filedialog.askopenfilename(title="Seleccionar .txt",
-                                          initialdir=WORK_DIR,
-                                          filetypes=[("Texto","*.txt")])
-        if path:
-            arr = leer_arreglo(path)
-            if arr:
-                self.array = arr
-                escribir_arreglo(FILE_INPUT, arr)
-                limpiar_cintas(); limpiar_log(FILE_LOG)
-                self.info_var.set(f"✅ Cargado: {os.path.basename(path)}  ({len(arr)} elementos)")
-                self.draw([self.p["DEF"]]*len(arr))
-            else:
-                messagebox.showerror("Error","No se encontraron números.")
-
-    def _upd_delay(self):
-        self.delay = max(60, int(1100 - self.speed.get()*10))
-
-    def _highlight_code(self, idx):
-        p = self.p
-        for i, lbl in enumerate(self.code_labels):
-            lbl.config(bg=p["PANEL"] if i!=idx else p["ACCENT"],
-                       fg=p["DIM"] if i!=idx else "white")
-
-    def draw(self, colors):
-        p = self.p; self.canvas.delete("all")
-        arr = self.array; n = len(arr)
-        if not n: return
-        w,h = 920,210; bw = w//n-4; mx = max(arr)
-        for i,v in enumerate(arr):
-            x0=i*(bw+4)+8; bh=int((v/mx)*(h-40)); y0=h-bh-6
-            x1,y1=x0+bw,h-6
-            col=colors[i] if i<len(colors) else p["DEF"]
-            self.canvas.create_rectangle(x0+2,y0+2,x1+2,y1+2,fill="#00000033",outline="")
-            self.canvas.create_rectangle(x0,y0,x1,y1,fill=col,outline="")
-            self.canvas.create_text(x0+bw//2,y0-9,text=str(v),
-                                    font=("Courier New",8,"bold"),fill="white")
-
-    def start_sort(self):
-        if self.animating or not self.array: return
-        limpiar_log(FILE_LOG); limpiar_cintas()
-        agregar_log(FILE_LOG, f"INICIO Mezcla Directa — arreglo: {self.array}")
-        self.animating = True
-        self.btn_start.config(state="disabled")
-        self.btn_pause.config(state="normal")
-        self.paused = False
-        self.passes = self.merges = self.comps = 0
-        self.step_gen = self._gen()
-        self._next()
-
-    def toggle_pause(self):
-        self.paused = not self.paused
-        self.btn_pause.config(text="▶ Reanudar" if self.paused else "⏸ Pausar")
-        if not self.paused: self._next()
-
-    def _next(self):
-        if self.paused or not self.animating: return
-        try:
-            next(self.step_gen)
-            self.root.after(self.delay, self._next)
-        except StopIteration:
-            self._finish()
-
-    def _finish(self):
-        p = self.p
-        self.animating = False
-        self.draw([p["DONE"]]*len(self.array))
-        escribir_arreglo(FILE_OUTPUT, self.array)
-        agregar_log(FILE_LOG, f"FIN — resultado: {self.array}")
-        self.btn_start.config(state="normal")
-        self.btn_pause.config(state="disabled",text="⏸ Pausar")
-        self._highlight_code(-1); self.runs_var.set("")
-        self.info_var.set("✅ Ordenado. Resultado en arreglo_salida.txt y cinta_*.txt")
-
-    def _find_runs(self, lst):
-        if not lst: return []
-        runs, run = [], [lst[0]]
-        for v in lst[1:]:
-            if v >= run[-1]: run.append(v)
-            else: runs.append(run); run = [v]
-        runs.append(run); return runs
-
-    def _gen(self):
-        p = self.p; arr = self.array; n = len(arr)
-        while True:
-            runs = self._find_runs(arr)
-            self._highlight_code(0)
-            # Distribuir runs en cinta_1 y cinta_2
-            c1 = [runs[i] for i in range(0,len(runs),2)]
-            c2 = [runs[i] for i in range(1,len(runs),2)]
-            escribir_runs(FILE_CINTA[0], c1)
-            escribir_runs(FILE_CINTA[1], c2)
-            agregar_log(FILE_LOG, f"Runs detectados: {len(runs)}  C1:{[r for r in c1]}  C2:{[r for r in c2]}")
-            # Colorear
-            cols = [p["DEF"]]*n; flat_pos = 0
-            for ridx, run in enumerate(runs):
-                c = p["RUN_A"] if ridx%2==0 else p["RUN_B"]
-                for _ in run: cols[flat_pos]=c; flat_pos+=1
-            strs = ["["+",".join(str(x) for x in r)+"]" for r in runs]
-            self.runs_var.set("Runs: "+"  ".join(strs))
-            self.info_var.set(f"📊 {len(runs)} run(s) → escritos en cinta_1.txt / cinta_2.txt")
-            self.draw(cols); yield
-            if len(runs)==1: break
-
-            self.passes += 1
-            c3_runs, c4_runs = [], []
-            dest = 0
-            while c1 or c2:
-                ra = c1.pop(0) if c1 else []
-                rb = c2.pop(0) if c2 else []
-                self.merges += 1
-                self._highlight_code(2)
-                # Colorear los dos runs
-                pos = 0; cols2 = [p["DEF"]]*n
-                for v in arr:
-                    if v in ra: cols2[pos]=p["RUN_A"]
-                    elif v in rb: cols2[pos]=p["RUN_B"]
-                    pos+=1
-                self.info_var.set(f"🔀 Mezclando C1:{ra} + C2:{rb}")
-                self.draw(cols2); yield
-                # Merge
-                merged=[]; ia=ib=0
-                while ia<len(ra) and ib<len(rb):
-                    self.comps+=1
-                    self.stat_var.set(f"Pasadas: {self.passes}  |  Mezclas: {self.merges}  |  Comparaciones: {self.comps}")
-                    if ra[ia]<=rb[ib]: merged.append(ra[ia]); ia+=1
-                    else: merged.append(rb[ib]); ib+=1
-                    self._highlight_code(3); self.draw(cols2); yield
-                merged += ra[ia:]+rb[ib:]
-                if dest==0: c3_runs.append(merged)
-                else: c4_runs.append(merged)
-                dest ^= 1
-                # Actualizar arr parcialmente
-                self.info_var.set(f"✔ Mezcla → {merged}  (cinta_{'3' if dest==1 else '4'}.txt)")
-                cols3=[p["DEF"]]*n
-                flat2=[x for r in (c3_runs+c4_runs) for x in r]
-                for i2,v2 in enumerate(flat2[:n]): cols3[i2]=p["DONE"]
-                self.draw(cols3); yield
-
-            # Escribir cintas resultado
-            escribir_runs(FILE_CINTA[2], c3_runs)
-            escribir_runs(FILE_CINTA[3], c4_runs)
-            agregar_log(FILE_LOG, f"Pasada {self.passes}: C3={c3_runs}  C4={c4_runs}")
-            # Reconstruir arreglo desde cintas c3+c4 entrelazadas para siguiente pasada
-            new_runs = []
-            max_len = max(len(c3_runs), len(c4_runs))
-            for i2 in range(max_len):
-                if i2 < len(c3_runs): new_runs.append(c3_runs[i2])
-                if i2 < len(c4_runs): new_runs.append(c4_runs[i2])
-            arr[:] = [x for r in new_runs for x in r]
-            self.array[:] = arr
-            # Siguiente iteración usa c3/c4 como nuevas c1/c2
-            c1, c2 = c3_runs[:], c4_runs[:]
-            escribir_runs(FILE_CINTA[0], c1)
-            escribir_runs(FILE_CINTA[1], c2)
-            self._highlight_code(5)
-            self.info_var.set(f"🔄 Pasada {self.passes} completa → cinta_3→cinta_1, cinta_4→cinta_2")
-            self.draw([p["SORTED"]]*n); yield
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  MÓDULO 3: MEZCLA EQUILIBRADA
-# ══════════════════════════════════════════════════════════════════════════════
-
-class MezclaEquilibradaApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Mezcla Equilibrada — Balanced Merge Sort")
-        p = PAL["mezcla_eq"]
-        self.p = p
-        self.root.configure(bg=p["BG"])
-        self.root.geometry("980x730")
-        self.root.resizable(False, False)
-        self.array = []
-        self.animating = False
-        self.paused = False
-        self.delay = 600
-        self.step_gen = None
-        self.TAPE_COL = [p["C1"], p["C2"], p["C3"], p["C4"]]
-        self._build_ui()
-        self._cargar_desde_disco()
-
-    def _build_ui(self):
-        p = self.p
-        tk.Label(self.root, text="🎞  MEZCLA EQUILIBRADA  (Balanced Merge Sort)",
-                 font=("Courier New",17,"bold"), bg=p["BG"], fg=p["ACCENT"]).pack(pady=(10,2))
-        tk.Label(self.root,
-                 text="Lee/escribe temp_1.txt … temp_4.txt (cintas auxiliares en disco)",
-                 font=("Courier New",9), bg=p["BG"], fg=p["DIM"]).pack()
-
-        tk.Label(self.root,text="Arreglo actual:",
-                 font=("Courier New",9,"bold"),bg=p["BG"],fg=p["TEXT"]).pack(anchor="w",padx=28)
-        self.canvas_main = tk.Canvas(self.root, width=920, height=110,
-                                     bg=p["PANEL"], highlightthickness=0)
-        self.canvas_main.pack(padx=20, pady=2)
-
-        tk.Label(self.root, text="Cintas auxiliares (temp_1…temp_4):",
-                 font=("Courier New",9,"bold"), bg=p["BG"], fg=p["TEXT"]).pack(anchor="w",padx=28,pady=(4,0))
-        self.canvas_tapes = tk.Canvas(self.root, width=920, height=150,
-                                      bg=p["PANEL"], highlightthickness=0)
-        self.canvas_tapes.pack(padx=20, pady=2)
-
-        self.info_var = tk.StringVar(value="Cargando desde disco...")
-        tk.Label(self.root, textvariable=self.info_var,
-                 font=("Courier New",11,"bold"), bg=p["BG"], fg=p["TEXT"],
-                 wraplength=900, justify="center").pack(pady=3)
-
-        pc = tk.Frame(self.root, bg=p["PANEL"]); pc.pack(padx=20, fill="x", pady=2)
-        tk.Label(pc, text="  Pseudocódigo (4 cintas: T1 T2 → T3 T4):",
-                 font=("Courier New",9,"bold"), bg=p["PANEL"], fg=p["ACCENT"]).pack(anchor="w")
-        lineas = [
-            "  1. Distribuir runs alternando entre T1 (temp_1.txt) y T2 (temp_2.txt)",
-            "  2. Mientras haya más de 1 run en total:",
-            "  3.     Mezclar 1 run T1 + 1 run T2 → colocar alternando en T3 y T4",
-            "  4.     Intercambiar: (T1,T2) ← (T3,T4) ;  limpiar T3, T4",
-            "  5. El resultado en T1 (o T2) es el arreglo ordenado → arreglo_salida.txt",
-        ]
-        self.code_labels = []
-        for l in lineas:
-            lbl = tk.Label(pc, text=l, font=("Courier New",9),
-                           bg=p["PANEL"], fg=p["DIM"], anchor="w")
-            lbl.pack(fill="x"); self.code_labels.append(lbl)
-
-        ctrl = tk.Frame(self.root, bg=p["BG"]); ctrl.pack(pady=6)
-        bs = dict(font=("Courier New",10,"bold"), bg=p["PANEL"], fg=p["TEXT"],
-                  relief="flat", activebackground=p["ACCENT"], activeforeground="white",
-                  padx=10, pady=5, cursor="hand2")
-        tk.Button(ctrl, text="🔀 Generar aleatorio", command=self._generar, **bs).pack(side="left",padx=4)
-        tk.Button(ctrl, text="📂 Cargar .txt", command=self._cargar_archivo, **bs).pack(side="left",padx=4)
-        self.btn_start = tk.Button(ctrl, text="▶ Iniciar", command=self.start_sort, **bs)
-        self.btn_start.pack(side="left",padx=4)
-        self.btn_pause = tk.Button(ctrl, text="⏸ Pausar", command=self.toggle_pause,
-                                   state="disabled", **bs)
-        self.btn_pause.pack(side="left",padx=4)
-        tk.Label(ctrl, text=" Vel:", font=("Courier New",9), bg=p["BG"], fg=p["DIM"]).pack(side="left")
-        self.speed = tk.IntVar(value=50)
-        ttk.Scale(ctrl, from_=1, to=100, variable=self.speed, orient="horizontal", length=100,
-                  command=lambda v: self._upd_delay()).pack(side="left",padx=4)
-
-        self.stat_var = tk.StringVar(value="Pasada: 0  |  Mezclas: 0  |  Comparaciones: 0")
-        tk.Label(self.root, textvariable=self.stat_var,
-                 font=("Courier New",9), bg=p["BG"], fg=p["DIM"]).pack()
-        tk.Label(self.root, text=f"Cintas: {WORK_DIR}",
-                 font=("Courier New",8), bg=p["BG"], fg=p["DIM"]).pack(pady=1)
-
-    def _cargar_desde_disco(self):
-        arr = leer_arreglo(FILE_INPUT)
-        if arr:
-            self.array = arr
-            self.info_var.set(f"✅ Cargado: {len(arr)} elementos de arreglo_entrada.txt")
-            self.draw_main(arr, [self.p["C1"]]*len(arr))
-            self.draw_tapes([[],[],[],[]])
-        else:
-            self._generar()
-
-    def _generar(self):
-        if self.animating: return
-        arr = random.sample(range(4,99), 12)
-        escribir_arreglo(FILE_INPUT, arr)
-        limpiar_log(FILE_LOG); limpiar_cintas()
-        agregar_log(FILE_LOG, f"Arreglo generado: {arr}")
-        self.array = arr
-        self._highlight_code(-1)
-        self.stat_var.set("Pasada: 0  |  Mezclas: 0  |  Comparaciones: 0")
-        self.info_var.set(f"✅ Generado → arreglo_entrada.txt  ({len(arr)} elementos)")
-        self.draw_main(arr, ["#444"]*len(arr))
-        self.draw_tapes([[],[],[],[]])
-
-    def _cargar_archivo(self):
-        if self.animating: return
-        path = filedialog.askopenfilename(title="Seleccionar .txt",
-                                          initialdir=WORK_DIR,
-                                          filetypes=[("Texto","*.txt")])
-        if path:
-            arr = leer_arreglo(path)
-            if arr:
-                self.array = arr
-                escribir_arreglo(FILE_INPUT, arr)
-                limpiar_cintas(); limpiar_log(FILE_LOG)
-                self.info_var.set(f"✅ Cargado: {os.path.basename(path)}  ({len(arr)} elementos)")
-                self.draw_main(arr, ["#444"]*len(arr))
-                self.draw_tapes([[],[],[],[]])
-            else:
-                messagebox.showerror("Error","No se encontraron números.")
-
-    def _upd_delay(self):
-        self.delay = max(60, int(1200 - self.speed.get()*11))
-
-    def _highlight_code(self, idx):
-        p = self.p
-        for i, lbl in enumerate(self.code_labels):
-            lbl.config(bg=p["PANEL"] if i!=idx else p["ACCENT"],
-                       fg=p["DIM"] if i!=idx else "white")
-
-    def draw_main(self, arr, colors):
-        p = self.p; self.canvas_main.delete("all")
-        n = len(arr)
-        if not n: return
-        w,h = 920,110; bw=w//n-3; mx=max(arr)
-        for i,v in enumerate(arr):
-            x0=i*(bw+3)+5; bh=int((v/mx)*(h-28)); y0=h-bh-5
-            x1,y1=x0+bw,h-5
-            col=colors[i] if i<len(colors) else "#444"
-            self.canvas_main.create_rectangle(x0+2,y0+2,x1+2,y1+2,fill="#00000044",outline="")
-            self.canvas_main.create_rectangle(x0,y0,x1,y1,fill=col,outline="")
-            self.canvas_main.create_text(x0+bw//2,y0-7,text=str(v),
-                                         font=("Courier New",8,"bold"),fill="white")
-
-    def draw_tapes(self, tapes):
-        """tapes: lista de 4 listas (cada una puede ser lista de runs o lista plana)"""
-        p = self.p; self.canvas_tapes.delete("all")
-        names = ["T1","T2","T3","T4"]
-        tape_y = [5, 42, 82, 120]
-        for tidx,(tape,col,name,ty) in enumerate(zip(tapes,self.TAPE_COL,names,tape_y)):
-            self.canvas_tapes.create_text(22,ty+14,text=name,
-                                          font=("Courier New",10,"bold"),fill=col,anchor="w")
-            self.canvas_tapes.create_rectangle(45,ty,915,ty+27,
-                                               fill="#1a0030",outline=col,width=1)
-            flat=[]; seps=[]
-            if tape and isinstance(tape[0],list):
-                for run in tape:
-                    flat.extend(run); seps.append(len(flat))
-            else:
-                flat=list(tape)
-            x=50
-            for eidx,v in enumerate(flat):
-                cw=28
-                self.canvas_tapes.create_rectangle(x,ty+2,x+cw-2,ty+25,fill=col,outline="")
-                self.canvas_tapes.create_text(x+cw//2-1,ty+13,text=str(v),
-                                              font=("Courier New",8,"bold"),fill="white")
-                x+=cw
-                if (eidx+1) in seps and (eidx+1)<len(flat):
-                    self.canvas_tapes.create_line(x,ty+2,x,ty+25,fill="white",width=2,dash=(4,2))
-
-    def start_sort(self):
-        if self.animating or not self.array: return
-        limpiar_log(FILE_LOG); limpiar_cintas()
-        agregar_log(FILE_LOG, f"INICIO Mezcla Equilibrada — arreglo: {self.array}")
-        self.animating = True
-        self.btn_start.config(state="disabled")
-        self.btn_pause.config(state="normal")
-        self.paused = False
-        self.pass_num = self.merges = self.comps = 0
-        self.step_gen = self._gen()
-        self._next()
-
-    def toggle_pause(self):
-        self.paused = not self.paused
-        self.btn_pause.config(text="▶ Reanudar" if self.paused else "⏸ Pausar")
-        if not self.paused: self._next()
-
-    def _next(self):
-        if self.paused or not self.animating: return
-        try:
-            next(self.step_gen)
-            self.root.after(self.delay, self._next)
-        except StopIteration:
-            self._finish()
-
-    def _finish(self):
-        p = self.p; n = len(self.array)
-        self.animating = False
-        self.draw_main(self.array, [p["DONE"]]*n)
-        self.draw_tapes([[],[],[],[]])
-        escribir_arreglo(FILE_OUTPUT, self.array)
-        agregar_log(FILE_LOG, f"FIN — resultado: {self.array}")
-        self.btn_start.config(state="normal")
-        self.btn_pause.config(state="disabled",text="⏸ Pausar")
-        self._highlight_code(-1)
-        self.info_var.set("✅ Ordenado. Guardado en arreglo_salida.txt  |  temp_1…4.txt")
-
-    def _find_runs(self, lst):
-        if not lst: return []
-        runs, run = [], [lst[0]]
-        for v in lst[1:]:
-            if v >= run[-1]: run.append(v)
-            else: runs.append(run); run=[v]
-        runs.append(run); return runs
-
-    def _gen(self):
-        p = self.p; arr = self.array; n = len(arr)
-
-        # Detectar runs e inicializar t1, t2
-        runs = self._find_runs(arr)
-        t1 = [runs[i] for i in range(0,len(runs),2)]
-        t2 = [runs[i] for i in range(1,len(runs),2)]
-        escribir_runs(FILE_TEMP[0], t1)
-        escribir_runs(FILE_TEMP[1], t2)
-        self._highlight_code(0)
-        self.info_var.set(f"📋 {len(runs)} run(s) → distribuidos en temp_1.txt / temp_2.txt")
-        agregar_log(FILE_LOG, f"Distribución inicial T1:{t1}  T2:{t2}")
-        self.draw_tapes([t1, t2, [], []])
-        yield
-
-        while len(t1)+len(t2) > 1:
-            self.pass_num += 1
-            t3, t4 = [], []
-            dest = 0
-            self._highlight_code(2)
-
-            while t1 or t2:
-                ra = t1.pop(0) if t1 else []
-                rb = t2.pop(0) if t2 else []
-                self.merges += 1
-                dest_name = "T3" if dest==0 else "T4"
-                self.info_var.set(
-                    f"🔀 Mezclando  T1:{ra}  +  T2:{rb}  →  {dest_name}")
-                agregar_log(FILE_LOG, f"  Mezcla: {ra} + {rb}")
-                self.draw_tapes([t1, t2, t3, t4]); yield
-
-                merged=[]; ia=ib=0
-                while ia<len(ra) and ib<len(rb):
-                    self.comps+=1
-                    self.stat_var.set(
-                        f"Pasada: {self.pass_num}  |  Mezclas: {self.merges}  |  Comparaciones: {self.comps}")
-                    if ra[ia]<=rb[ib]: merged.append(ra[ia]); ia+=1
-                    else: merged.append(rb[ib]); ib+=1
-                    self.draw_tapes([t1, t2, t3, t4]); yield
-                merged += ra[ia:]+rb[ib:]
-
-                if dest==0: t3.append(merged)
-                else: t4.append(merged)
-                dest ^= 1
-
-                # Actualizar cintas en disco
-                escribir_runs(FILE_TEMP[2], t3)
-                escribir_runs(FILE_TEMP[3], t4)
-                self.draw_tapes([t1, t2, t3, t4]); yield
-
-            # Intercambiar roles
-            self._highlight_code(3)
-            self.info_var.set(f"🔄 Pasada {self.pass_num} completa → T1←T3, T2←T4")
-            agregar_log(FILE_LOG, f"Pasada {self.pass_num}: T3={t3}  T4={t4}")
-            self.draw_tapes([t1, t2, t3, t4]); yield
-
-            t1, t2 = t3[:], t4[:]
-            escribir_runs(FILE_TEMP[0], t1)
-            escribir_runs(FILE_TEMP[1], t2)
-            # Limpiar t3, t4 en disco
-            with open(FILE_TEMP[2],"w") as f: pass
-            with open(FILE_TEMP[3],"w") as f: pass
-            self.draw_tapes([t1, t2, [], []]); yield
-
-        # Reconstruir arreglo final
-        self._highlight_code(4)
-        src = t1 if t1 else t2
-        result = [x for run in src for x in run]
-        arr[:] = result; self.array[:] = result
-        self.draw_main(arr, [p["DONE"]]*n)
-        self.draw_tapes([[],[],[],[]])
-        self.info_var.set("✅ Reconstruido desde temp_1.txt → guardando arreglo_salida.txt")
-        yield
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  ENTRY POINT
-# ══════════════════════════════════════════════════════════════════════════════
+            self._dibujar(self.datos_actuales, listos=list(range(len(self.datos_actuales))))
+            self._log_msg("✅ ¡Ordenamiento finalizado!")
+        except Exception as e:
+            self._log_msg(f"❌ Error durante ejecución: {e}")
+        finally:
+            self.animando = False
 
 if __name__ == "__main__":
     root = tk.Tk()
-    MenuApp(root)
+    app = OrdenamientoApp(root)
     root.mainloop()
