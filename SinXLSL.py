@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║   MÉTODOS DE ORDENAMIENTO — VISUALIZADOR ULTRA                   ║
-║   Soporte: TXT, JSON, Excel | Auto-Detección | Temas Dinámicos   ║
+║   MÉTODOS DE ORDENAMIENTO — VISUALIZADOR ULTRA v2.0              ║
+║   Soporte: TXT, JSON, Excel | Filtro Manual | Temas Dinámicos    ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -26,7 +26,7 @@ FONT_BTN = ("Segoe UI", 10, "bold")
 FONT_SM = ("Segoe UI", 9)
 
 # ─────────────────────────────────────────────────────────
-#  LÓGICA DE ALGORITMOS (Adaptada para Texto y Números)
+#  LÓGICA DE ALGORITMOS
 # ─────────────────────────────────────────────────────────
 
 def intercalacion_pasos(a, b):
@@ -95,7 +95,7 @@ def mezcla_equilibrada_pasos(lista, k=3):
 class OrdenamientoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Visualizador de Ordenamiento Dinámico")
+        self.root.title("Visualizador de Ordenamiento Dinámico v2")
         self.root.geometry("1100x800")
         
         self.tema_actual = "Cyberpunk"
@@ -104,13 +104,12 @@ class OrdenamientoApp:
         self.datos_actuales = []
         self.metodo_actual = "directa"
         
-        self.widgets_tema = [] # Para actualizar colores dinámicamente
+        self.widgets_tema = [] 
         self._build_ui()
         self._aplicar_tema(self.tema_actual)
         self._generar_aleatorios()
 
     def _reg_w(self, widget, t_bg="bg", t_fg="text"):
-        """Registra un widget para actualizar su color con el tema."""
         self.widgets_tema.append((widget, t_bg, t_fg))
         return widget
 
@@ -125,27 +124,36 @@ class OrdenamientoApp:
         body.pack(fill="both", expand=True, padx=15, pady=10)
 
         # --- SIDEBAR IZQUIERDA (Controles) ---
-        side = self._reg_w(tk.Frame(body, width=260), "bg2")
+        side = self._reg_w(tk.Frame(body, width=280), "bg2")
         side.pack(side="left", fill="y", padx=(0, 10))
         side.pack_propagate(False)
 
-        # Configuración Dinámica
+        # CONFIGURACIÓN
         self._reg_w(tk.Label(side, text="⚙️ CONFIGURACIÓN", font=FONT_SM)).pack(pady=(10,5))
         
         frame_configs = self._reg_w(tk.Frame(side), "bg2")
         frame_configs.pack(fill="x", padx=10)
+        
+        # Combo Tema
         self._reg_w(tk.Label(frame_configs, text="Tema:", font=FONT_SM)).grid(row=0, column=0, sticky="w")
-        self.combo_tema = ttk.Combobox(frame_configs, values=list(TEMAS.keys()), state="readonly", width=12)
+        self.combo_tema = ttk.Combobox(frame_configs, values=list(TEMAS.keys()), state="readonly", width=14)
         self.combo_tema.set(self.tema_actual)
         self.combo_tema.bind("<<ComboboxSelected>>", lambda e: self._aplicar_tema(self.combo_tema.get()))
         self.combo_tema.grid(row=0, column=1, pady=2)
 
+        # Spinbox Vías (K)
         self._reg_w(tk.Label(frame_configs, text="Vías (K):", font=FONT_SM)).grid(row=1, column=0, sticky="w")
         self.spin_k = tk.Spinbox(frame_configs, from_=2, to=10, width=5)
         self.spin_k.delete(0, "end"); self.spin_k.insert(0, "3")
         self.spin_k.grid(row=1, column=1, sticky="w", pady=2)
 
-        # Métodos
+        # ¡NUEVO! Combo Tipo de Dato a Extraer
+        self._reg_w(tk.Label(frame_configs, text="Extraer:", font=FONT_SM)).grid(row=2, column=0, sticky="w")
+        self.combo_tipo_dato = ttk.Combobox(frame_configs, values=["Automático", "Solo Números", "Solo Texto"], state="readonly", width=14)
+        self.combo_tipo_dato.set("Automático")
+        self.combo_tipo_dato.grid(row=2, column=1, pady=2)
+
+        # MÉTODOS
         self._reg_w(tk.Label(side, text="ALGORITMO", font=FONT_SM)).pack(pady=(15,5))
         self.btn_metodos = {}
         for label, key in [("Intercalación", "intercalacion"), ("Mezcla Directa", "directa"), ("Mezcla Equilibrada", "equilibrada")]:
@@ -154,8 +162,8 @@ class OrdenamientoApp:
             self.widgets_tema.append((btn, "bg3", "text"))
             self.btn_metodos[key] = btn
 
-        # Gestión de Datos
-        self._reg_w(tk.Label(side, text="DATOS", font=FONT_SM)).pack(pady=(15,5))
+        # DATOS
+        self._reg_w(tk.Label(side, text="GESTIÓN DE DATOS", font=FONT_SM)).pack(pady=(15,5))
         btn_rand = tk.Button(side, text="🎲 Generar Aleatorios", font=FONT_SM, bd=0, cursor="hand2", command=self._generar_aleatorios)
         btn_rand.pack(fill="x", padx=10, pady=2)
         self.widgets_tema.append((btn_rand, "bg3", "text"))
@@ -168,7 +176,7 @@ class OrdenamientoApp:
         btn_save.pack(fill="x", padx=10, pady=2)
         self.widgets_tema.append((btn_save, "bg3", "text"))
 
-        # Velocidad y Ejecución
+        # VELOCIDAD Y EJECUCIÓN
         self._reg_w(tk.Label(side, text="VELOCIDAD", font=FONT_SM)).pack(pady=(15,5))
         self.vel_slider = tk.Scale(side, from_=0.01, to=1.0, resolution=0.05, orient="horizontal", bd=0, highlightthickness=0)
         self.vel_slider.set(0.2)
@@ -177,7 +185,7 @@ class OrdenamientoApp:
 
         self.btn_run = tk.Button(side, text="▶️ INICIAR ORDENAMIENTO", font=FONT_BTN, bd=0, pady=12, cursor="hand2", command=self._ejecutar)
         self.btn_run.pack(fill="x", padx=10, pady=20)
-        self.widgets_tema.append((self.btn_run, "accent", "bg")) # Texto oscuro para contraste
+        self.widgets_tema.append((self.btn_run, "accent", "bg")) 
 
         # --- AREA PRINCIPAL ---
         main = self._reg_w(tk.Frame(body))
@@ -205,7 +213,7 @@ class OrdenamientoApp:
                 if isinstance(widget, tk.Scale):
                     widget.configure(troughcolor=self.c["bg3"])
             except: pass
-        self._sel_metodo(self.metodo_actual) # Refrescar botones
+        self._sel_metodo(self.metodo_actual) 
         self._dibujar(self.datos_actuales)
 
     def _sel_metodo(self, metodo):
@@ -215,10 +223,19 @@ class OrdenamientoApp:
                         fg=self.c["bg"] if k == metodo else self.c["text"])
         
         tipo = type(self.datos_actuales[0]).__name__ if self.datos_actuales else "Desconocido"
-        self.lbl_titulo.config(text=f"MODO: {self.metodo_actual.upper()} | Tipo Dominante: {tipo} | Elementos: {len(self.datos_actuales)}")
+        self.lbl_titulo.config(text=f"MODO: {self.metodo_actual.upper()} | Datos actuales: {tipo} | Elementos: {len(self.datos_actuales)}")
 
     def _generar_aleatorios(self):
-        opcion = random.choice(["numeros", "texto"])
+        # Ahora la generación aleatoria también respeta el Combobox si no está en Automático
+        preferencia = self.combo_tipo_dato.get()
+        
+        if preferencia == "Solo Números":
+            opcion = "numeros"
+        elif preferencia == "Solo Texto":
+            opcion = "texto"
+        else:
+            opcion = random.choice(["numeros", "texto"])
+
         if opcion == "numeros":
             self.datos_actuales = [random.randint(1, 100) for _ in range(20)]
         else:
@@ -229,21 +246,38 @@ class OrdenamientoApp:
         self._sel_metodo(self.metodo_actual)
         self._dibujar(self.datos_actuales)
 
+    # -------------------------------------------------------------
+    # NUEVA LÓGICA DE FILTRADO BASADA EN LA SELECCIÓN DEL USUARIO
+    # -------------------------------------------------------------
     def _procesar_y_filtrar_datos(self, raw_data):
         numeros, textos = [], []
         for item in raw_data:
             if pd.isna(item) or item == "": continue
-            try: numeros.append(float(item) if '.' in str(item) else int(item))
-            except ValueError: textos.append(str(item).strip())
+            try: 
+                numeros.append(float(item) if '.' in str(item) else int(item))
+            except ValueError: 
+                textos.append(str(item).strip())
         
-        # Filtro inteligente: Nos quedamos con la mayoría
-        if len(numeros) >= len(textos) and numeros:
-            self._log_msg(f"Detección: NÚMEROS. Se descartaron {len(textos)} valores de texto incompatibles.")
+        preferencia = self.combo_tipo_dato.get()
+
+        if preferencia == "Solo Números":
+            if not numeros: raise ValueError("Seleccionaste 'Solo Números', pero no se encontró ninguno en el archivo.")
+            self._log_msg(f"Filtro estricto: Extrayendo solo los {len(numeros)} números encontrados.")
             return numeros
-        elif textos:
-            self._log_msg(f"Detección: TEXTO. Se descartaron {len(numeros)} valores numéricos incompatibles.")
+
+        elif preferencia == "Solo Texto":
+            if not textos: raise ValueError("Seleccionaste 'Solo Texto', pero no se encontraron palabras en el archivo.")
+            self._log_msg(f"Filtro estricto: Extrayendo solo las {len(textos)} palabras/textos encontrados.")
             return textos
-        return []
+
+        else: # Automático
+            if len(numeros) >= len(textos) and numeros:
+                self._log_msg(f"Detección Automática: NÚMEROS. Se descartaron {len(textos)} valores de texto incompatibles.")
+                return numeros
+            elif textos:
+                self._log_msg(f"Detección Automática: TEXTO. Se descartaron {len(numeros)} valores numéricos incompatibles.")
+                return textos
+            return []
 
     def _cargar_archivo(self):
         ruta = filedialog.askopenfilename(filetypes=[("Todos soportados", "*.txt *.xlsx *.xls *.json")])
@@ -270,7 +304,8 @@ class OrdenamientoApp:
             self._dibujar(self.datos_actuales)
             messagebox.showinfo("Éxito", f"Datos cargados desde {os.path.basename(ruta)}")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al leer archivo:\n{e}")
+            messagebox.showerror("Error", f"Error al procesar archivo:\n{e}")
+            self._log_msg(f"❌ Error al cargar archivo: {e}")
 
     def _guardar_archivo(self):
         if not self.datos_actuales:
@@ -297,9 +332,8 @@ class OrdenamientoApp:
         if not valores: return
         W, H = int(self.canvas.winfo_width() or 800), int(self.canvas.winfo_height() or 350)
         n = len(valores)
-        ancho = min((W - 40) / n, 80) # Límite de grosor
+        ancho = min((W - 40) / n, 80) 
         
-        # Lógica para graficar cualquier tipo de dato (rankeando su valor ordenado)
         valores_unicos = sorted(list(set(valores)))
         
         for i, v in enumerate(valores):
@@ -329,7 +363,6 @@ class OrdenamientoApp:
         
         try:
             if m == "intercalacion":
-                # Intercalar requiere 2 listas, dividiremos la actual a la mitad aleatoriamente
                 mitad = len(self.datos_actuales) // 2
                 a, b = self.datos_actuales[:mitad], self.datos_actuales[mitad:]
                 self._log_msg(f"Intercalando 2 sublistas (tamaños {len(a)} y {len(b)})...")
